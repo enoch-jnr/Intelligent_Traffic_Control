@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
+    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -87,6 +88,10 @@ class LiveLogTab(QWidget):
         self.view = QPlainTextEdit()
         self.view.setAccessibleName("Live log")
         self.view.setReadOnly(True)
+        self.view.setMinimumHeight(0)
+        self.view.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored
+        )
         self.view.setMaximumBlockCount(capacity)
         self.view.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.view.setPlaceholderText("Log records appear here.")
@@ -203,12 +208,20 @@ class DecisionsTab(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.setMinimumHeight(0)
+        self.table.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored
+        )
         self.table.verticalHeader().setDefaultSectionSize(22)
         self.table.currentCellChanged.connect(self._show_selected)
         layout.addWidget(self.table, 1)
 
         self.detail = QPlainTextEdit()
         self.detail.setReadOnly(True)
+        self.detail.setMinimumHeight(0)
+        self.detail.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored
+        )
         self.detail.setMaximumHeight(72)
         self.detail.setPlaceholderText("Select a decision to see its full record.")
         layout.addWidget(self.detail)
@@ -277,6 +290,10 @@ class LogPanel(QTabWidget):
         self.addTab(self.live, "Live log")
         self.addTab(self.decisions, "Decisions")
         self.setDocumentMode(True)
+        self.setMinimumHeight(0)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored
+        )
 
     def append_logs(self, lines: Iterable[LogLine]) -> None:
         self.live.append_lines(lines)

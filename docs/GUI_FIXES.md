@@ -129,9 +129,25 @@ and the context menu contains no Fullscreen item.
 - Menu bar, tab headers and log buttons are compact; tiles can shrink to
   108 px high and keep aspect ratio with letterboxing.
 
+## Follow-up: dock could grow but not shrink
+
+The second cause was not the 240 px acceptance figure alone. The dock frame had
+`setMinimumHeight(312)`, and its tab page's child layout also reported a 291 px
+minimum-size hint. QSplitter therefore treated 291 px as the floor even after
+the explicit 312 px minimum was removed, so dragging up grew the dock but
+moving the handle back down could not return the space.
+
+The frame, tab widget, log view, decisions table and detail box now have zero
+minimum height and an ignored vertical size policy. The frame's only minimum is
+the 80 px floor (tab header plus about two log lines). Dragging below 80 px
+collapses the dock; the handle double-click and `Ctrl+J` toggle collapse and
+restore; the height and collapsed state persist. Corrupt or out-of-range saved
+heights fall back to 312 px, and old camera ids in persisted focus settings are
+ignored.
+
 ## Verification
 
-- `python -m pytest -q` → 142 passed.
+- `python -m pytest -q` → 157 passed after the rename, shortcuts and dock tests.
 - Pixel, stale, badge, layout, pop-out, preview, profile, load-shedding,
   dropped-frame and streaming-export tests were added.
 - Core import guard still passes (`tests/test_gui_isolation.py`).

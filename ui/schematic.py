@@ -20,10 +20,11 @@ from app.snapshots import UiSnapshot
 from ui.theme import Theme
 
 UNIT_COLOURS = {
-    "MAIN": "approach-main",
-    "SEC_A": "approach-sec-a",
-    "SEC_B": "approach-sec-b",
-    "SECONDARY": "accent-text",
+    "MAIN_A": "approach-main-a",
+    "MAIN_B": "approach-main-b-label",
+    "SEC": "approach-sec-label",
+    "MAIN": "approach-main-a",
+    "SECONDARY": "approach-sec-label",
 }
 CONGESTION_TONE = {"Low": "ok", "Moderate": "warn", "High": "critical"}
 
@@ -89,7 +90,7 @@ class SchematicCanvas(QWidget):
         super().__init__()
         self.theme = theme
         self._snapshot: Optional[UiSnapshot] = None
-        self.setMinimumHeight(120)
+        self.setMinimumHeight(100)
 
     def set_snapshot(self, snapshot: UiSnapshot) -> None:
         self._snapshot = snapshot
@@ -108,13 +109,19 @@ class SchematicCanvas(QWidget):
         road_width = max(26, min(52, int(width * 0.12)))
         road_color = QColor(self.theme.tokens["border"])
 
+        # A T: the top bar carries MAIN_A and MAIN_B; the stem carries SEC.
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(road_color)
         painter.drawRect(
-            QRectF(cx - road_width / 2, 0, road_width, junction_y + road_width / 2)
+            QRectF(0, int(height * 0.22), width, road_width)
         )
         painter.drawRect(
-            QRectF(0, junction_y - road_width / 2, width, road_width)
+            QRectF(
+                cx - road_width / 2,
+                int(height * 0.22),
+                road_width,
+                height - int(height * 0.22),
+            )
         )
 
         snapshot = self._snapshot
@@ -131,28 +138,41 @@ class SchematicCanvas(QWidget):
             return approach == unit_id
 
         accent = QColor(self.theme.tokens["accent-text"])
-        if highlighted("MAIN"):
+        top_y = int(height * 0.22)
+        if highlighted("MAIN_A") or highlighted("MAIN_B"):
             painter.setPen(QPen(accent, 3))
             painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(QRectF(2, top_y + 2, width - 4, road_width - 4))
+            if snapshot is not None and not snapshot.three_phase:
+                # Both main approaches are one unit on current firmware.
+                painter.drawRect(QRectF(4, top_y - 7, width - 8, road_width + 14))
+        if highlighted("SEC"):
+            painter.setPen(QPen(accent, 3))
             painter.drawRect(
-                QRectF(cx - road_width / 2 + 2, 2, road_width - 4, junction_y)
+                QRectF(
+                    cx - road_width / 2 + 2,
+                    top_y + 2,
+                    road_width - 4,
+                    height - top_y - 4,
+                )
             )
-        if highlighted("SEC_A"):
-            painter.setPen(QPen(accent, 3))
-            painter.drawLine(2, int(junction_y), int(cx), int(junction_y))
-        if highlighted("SEC_B"):
-            painter.setPen(QPen(accent, 3))
-            painter.drawLine(int(cx), int(junction_y), width - 2, int(junction_y))
 
-        self._label(painter, int(cx), 18, "MAIN", "approach-main", center=True)
-        self._label(painter, 8, int(junction_y) - 30, "SEC_A", "approach-sec-a")
+        self._label(painter, 8, top_y - 10, "MAIN_A", "approach-main-a")
         self._label(
             painter,
             width - 8,
-            int(junction_y) - 30,
-            "SEC_B",
-            "approach-sec-b",
+            top_y - 10,
+            "MAIN_B",
+            "approach-main-b-label",
             right=True,
+        )
+        self._label(
+            painter,
+            int(cx),
+            int(height * 0.72),
+            "SEC",
+            "approach-sec-label",
+            center=True,
         )
 
         if recommended is not None and green is not None:
@@ -181,7 +201,7 @@ class SchematicCanvas(QWidget):
                 painter,
                 int(cx),
                 height - 8,
-                "SEC_A + SEC_B → SECONDARY (compat)",
+                "MAIN_A + MAIN_B → MAIN · SEC → SECONDARY (compat)",
                 "status-warn",
                 center=True,
                 size=9,
@@ -260,8 +280,8 @@ class SchematicTile(QFrame):
 
         self.reasons = QPlainTextEdit()
         self.reasons.setReadOnly(True)
-        self.reasons.setMaximumHeight(66)
-        self.reasons.setMinimumHeight(44)
+        self.reasons.setMaximumHeight(56)
+        self.reasons.setMinimumHeight(36)
         self.reasons.setPlaceholderText("Decision reasons appear here.")
         layout.addWidget(self.reasons, 0)
 

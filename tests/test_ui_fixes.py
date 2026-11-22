@@ -32,28 +32,28 @@ def _config():
         {
             "cameras": [
                 {
-                    "id": "cam_main",
-                    "approach": "MAIN",
+                    "id": "cam_main_a",
+                    "approach": "MAIN_A",
                     "source": "file",
                     "path": "missing.avi",
                 },
                 {
-                    "id": "cam_sec_a",
-                    "approach": "SEC_A",
+                    "id": "cam_main_b",
+                    "approach": "MAIN_B",
                     "source": "file",
                     "path": "missing_a.avi",
                 },
                 {
-                    "id": "cam_sec_b",
-                    "approach": "SEC_B",
+                    "id": "cam_sec",
+                    "approach": "SEC",
                     "source": "file",
                     "path": "missing_b.avi",
                 },
             ],
             "decision": {
                 "units": [
-                    {"id": "MAIN", "approaches": ["MAIN"]},
-                    {"id": "SECONDARY", "approaches": ["SEC_A", "SEC_B"]},
+                    {"id": "MAIN", "approaches": ["MAIN_A", "MAIN_B"]},
+                    {"id": "SECONDARY", "approaches": ["SEC"]},
                 ]
             },
             "performance": {"profile": "low"},
@@ -188,7 +188,7 @@ def test_mode_badge_exact_text_for_each_combination(qt_app, tmp_path):
 def test_layout_gives_log_and_decisions_room_at_1280x720(qt_app, tmp_path):
     controller, window = _window(qt_app, tmp_path)
     try:
-        window.work_splitter.setSizes([348, 312])
+        window._apply_dock_height(312)
         qt_app.processEvents()
         assert window.log_dock.height() >= 312
         assert window.log_panel.live.view.viewport().height() >= 240
@@ -206,7 +206,7 @@ def test_layout_gives_log_and_decisions_room_at_1280x720(qt_app, tmp_path):
 def test_double_click_never_opens_a_window_or_offers_fullscreen(qt_app, tmp_path):
     controller, window = _window(qt_app, tmp_path)
     try:
-        tile = window._tiles["cam_main"]
+        tile = window._tiles["cam_main_a"]
         before = set(QApplication.topLevelWidgets())
         event = QMouseEvent(
             QEvent.Type.MouseButtonDblClick,
@@ -261,7 +261,7 @@ def test_preview_off_converts_and_paints_no_frames(qt_app, tmp_path, monkeypatch
         )
         window._refresh_video()
         assert called == []
-        assert window._tiles["cam_main"]._image is None
+        assert window._tiles["cam_main_a"]._image is None
     finally:
         window.close()
         controller.shutdown()

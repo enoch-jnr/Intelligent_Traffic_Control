@@ -67,7 +67,7 @@ is created. The existing `--display` path and headless `run()` are unchanged.
 | --- | --- |
 | Title bar + menu bar | Adopted. File / View / Cameras / Log / Settings / Help; mode badge at the right. |
 | Account / Login | Skipped; replaced by the mode / simulation badge. |
-| 3 x 3 dense grid | Adapted to 2 x 2 with 2 px gaps: MAIN, SEC_A, SEC_B and the T-junction schematic. Focus mode gives one large tile plus two small. |
+| 3 x 3 dense grid | Adapted to 2 x 2 with 2 px gaps: MAIN_A, MAIN_B, SEC and the T-junction schematic. Focus mode gives one large tile plus two small. |
 | Tile name + LIVE label | Adopted; health badge is icon + word (LIVE / STALE / DISCONNECTED / CONNECTING). Red is reserved for faults, so LIVE is green, not red. |
 | Corner telemetry | Adopted with the same four corners, monospace with a dark outline; View > Overlays hides them. |
 | Right sidebar sections | Adopted: System, Live Events, Playback, Camera List, Controls. |
@@ -105,9 +105,9 @@ computing the pairs:
 | `status-critical` | `#F06A6E` | icons/large text; 3.45:1 on raised (3:1 UI) |
 | `status-critical-text` | `#FF8A8D` | 4.6:1 on raised, 5.3:1 on panel |
 | `status-unknown` | `#A6B2BF` | lightened; grey + word, 4.8:1 on raised |
-| `approach-main` | `#5CC8D8` | 5.3:1 on raised |
-| `approach-sec-a` | `#C4B5FD` | lightened from `#A78BFA`, which was 3.81:1 on raised |
-| `approach-sec-b` | `#F4A3C0` | 6.2:1 on panel |
+| `approach-main-a` | `#5CC8D8` | 5.3:1 on raised |
+| `approach-main-b` | `#7AA7F0` | route/identity; text token `approach-main-b-label` `#8FB4FF` is 5.0:1 on raised |
+| `approach-sec` | `#A78BFA` | route/identity; text token `approach-sec-label` `#C4B5FD` is 5.6:1 on raised |
 | `focus-ring` | `#93C5FD` | 5.8:1 on raised |
 
 Measured body-text contrast (WCAG 2.1): primary 7.53-11.81, secondary
@@ -167,8 +167,15 @@ and reduced motion.
   only refreshed while the dock is visible.
 - UI actions run exports and shutdown in worker threads; the decision loop and
   gateway heartbeat never wait on the GUI.
-- Keyboard: visible focus, logical tab order, shortcuts on every control
-  (Ctrl+E export, Ctrl+R reset, Ctrl+Q shutdown, F5 start/stop, F11 focus).
+- Keyboard: visible focus, logical tab order, and one registry used by menus,
+  tooltips and Help > Keyboard shortcuts. Existing bindings stay
+  (Ctrl+E/Ctrl+Shift+E/Ctrl+Shift+S exports, Ctrl+H hold, Ctrl+R reset,
+  Ctrl+L release, F5 start/stop, F11 focus, Ctrl+Q shutdown). New bindings:
+  Ctrl+J log panel, Ctrl+T theme, F6/Shift+F6 next/previous camera,
+  Ctrl+1/2/3 direct camera focus, Ctrl+, configuration.
+- The focused camera is named in the status bar, not shown by colour alone.
+- The log dock has an 80 px floor, collapses when dragged below it, toggles
+  with Ctrl+J or a splitter-handle double-click, and persists its height.
 
 ## 9. Phase plan
 
@@ -231,8 +238,8 @@ and repaints tiles at 10 fps. Both runs used the same CPU and configuration.
 
 | Metric | Headless | GUI (offscreen) |
 | --- | --- | --- |
-| Source fps MAIN / SEC_A / SEC_B | 14.89 / 14.97 / 14.85 | 14.94 / 14.94 / 14.94 |
-| Processed fps MAIN / SEC_A / SEC_B | 12.28 / 12.50 / 12.73 | 12.79 / 12.59 / 12.71 |
+| Source fps MAIN_A / MAIN_B / SEC | 14.89 / 14.97 / 14.85 | 14.94 / 14.94 / 14.94 |
+| Processed fps MAIN_A / MAIN_B / SEC | 12.28 / 12.50 / 12.73 | 12.79 / 12.59 / 12.71 |
 | Heartbeats in 4 s (0.1 s target) | 36 | 36 |
 | Mean heartbeat gap | 0.110 s | 0.110 s |
 | Maximum heartbeat gap | 0.127 s | 0.112 s |
