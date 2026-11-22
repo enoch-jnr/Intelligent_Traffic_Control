@@ -34,6 +34,7 @@ from gateway.protocol import (
     status_request_message,
     traffic_request_message,
 )
+from gateway.transcript import WireEntry, WireTranscript
 
 _log = logging.getLogger("gateway.client")
 
@@ -83,9 +84,14 @@ class GatewayClient:
         *,
         name: str = "gateway",
         movements: Optional[Iterable[str]] = None,
+        wire_listener: Optional[Callable[[WireEntry], None]] = None,
     ) -> None:
         self.config = config
         self._health_check = health_check
+        self._wire_listener = wire_listener
+        # The transcript is always available to the GUI and CLI; it is bounded
+        # so a long-running link cannot grow without limit.
+        self.wire = WireTranscript()
         # Current firmware names by default; the adapter may pass the proposed
         # three-phase names after an explicit opt-in.
         self._movements: tuple[str, ...] = tuple(movements or MOVEMENTS)
@@ -385,6 +391,9 @@ class GatewayClient:
             if not chunk:
                 break
             for line in buffer.feed(chunk):
+                # Record the line before parsing so malformed replies remain
+                # visible instead of disappearing into a debug log.
+                self._record("RX", line)
                 try:
                     message = decode_message(line)
                 except ProtocolError as exc:
@@ -482,6 +491,17 @@ class GatewayClient:
             if sock is None:
                 raise OSError("not connected")
             sock.sendall(payload)
+        self._record("TX", payload.decode("utf-8").rstrip("\r\n"))
+
+    def _record(self, direction: str, line: str) -> None:
+        entry = self.wire.record(direction, line)
+        listener = self._wire_listener
+        if listener is None:
+            return
+        try:
+            listener(entry)
+        except Exception:  # noqa: BLE001 - a display hook must not kill the link
+            self._log.exception("wire transcript listener failed")
 
     # -- heartbeat --------------------------------------------------------
 

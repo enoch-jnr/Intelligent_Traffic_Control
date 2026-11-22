@@ -65,6 +65,7 @@ from ui.widgets import (
     StatusChip,
     format_uptime,
 )
+from ui.wire import WireTrafficDialog
 
 APPROACH_ORDER = ("MAIN_A", "MAIN_B", "SEC")
 DEFAULT_DOCK_HEIGHT = 312
@@ -112,6 +113,7 @@ class MainWindow(QMainWindow):
         self._shutting_down = False
         self._tasks: set[FunctionTask] = set()
         self._tiles: dict[str, CameraTile] = {}
+        self._wire_dialog: WireTrafficDialog | None = None
         self._flip_state = {
             camera.id: camera.flip for camera in controller.config.cameras
         }
@@ -679,6 +681,12 @@ class MainWindow(QMainWindow):
             "",
             "Zip redacted config, versions, logs and decisions; no images (Ctrl+Shift+E)",
         )
+        self.wire_button = button(
+            "Wire traffic…",
+            self._show_wire_window,
+            "",
+            "Show the exact JSON sent to the gateway and every reply received",
+        )
         snapshot_button = button(
             "Dashboard image…",
             self._snapshot_dashboard,
@@ -706,6 +714,7 @@ class MainWindow(QMainWindow):
             self.release_button,
             export_button,
             diagnostics_button,
+            self.wire_button,
             snapshot_button,
             shutdown_button,
             logs_button,
@@ -1560,6 +1569,13 @@ class MainWindow(QMainWindow):
         buttons.accepted.connect(dialog.accept)
         layout.addWidget(buttons)
         dialog.exec()
+
+    def _show_wire_window(self) -> None:
+        if self._wire_dialog is None:
+            self._wire_dialog = WireTrafficDialog(self.controller, self)
+        self._wire_dialog.show()
+        self._wire_dialog.raise_()
+        self._wire_dialog.activateWindow()
 
     def _show_shortcuts(self) -> None:
         dialog = QDialog(self)

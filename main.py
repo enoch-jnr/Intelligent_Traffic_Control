@@ -34,6 +34,7 @@ from decision.models import ServingUnit
 from decision.settings import DecisionSettings
 from gateway.adapter import COMPAT_MODE, THREE_PHASE_MODE
 from gateway.client import GatewayConfig
+from gateway.transcript import WireEntry
 
 _log = logging.getLogger("main")
 
@@ -73,6 +74,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="connect to the mock gateway on 127.0.0.1",
     )
     parser.add_argument(
+        "--show-wire",
+        action="store_true",
+        help="print every exact JSON line sent to the gateway and received back",
+    )
+    parser.add_argument(
         "--source",
         help="legacy single-camera demo: webcam:0, file:clip.avi or rtsp://...",
     )
@@ -88,6 +94,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="console log level (default: logging.level from config)",
     )
     return parser
+
+
+def print_wire_entry(entry: WireEntry) -> None:
+    """Print one exact JSON line with its direction; keep stdout line-buffered."""
+    print(f"{entry.direction} {entry.json}", flush=True)
 
 
 def config_from_source(spec: str) -> AppConfig:
@@ -202,12 +213,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             dry_run=args.dry_run,
             mock_gateway=args.mock_gateway,
             display=False,
+            wire_listener=print_wire_entry if args.show_wire else None,
             annotate_frames=True,
         )
         return run_gui(controller, argv=sys.argv[:1])
 
     display = (args.display or config.display) and not args.headless
-    orchestrator = Orchestrator(config, display=display, dry_run=args.dry_run)
+    orchestrator = Orchestrator(
+        config,
+        display=display,
+        dry_run=args.dry_run,
+        wire_listener=print_wire_entry if args.show_wire else None,
+    )
 
     try:
         orchestrator.run(duration_s=args.duration)

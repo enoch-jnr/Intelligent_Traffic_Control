@@ -84,6 +84,10 @@ nmcli connection modify "Smarti-Gateway" ipv4.never-default yes
 3. `ping 192.168.4.1` — the ESP32 answers on its AP.
 4. Only then start the app. The JSONL decision log records per-camera
    `frame_age_s`, so a silent camera is visible without a debugger.
+5. To inspect the link itself, start with `--show-wire` or open
+   **Controls → Wire traffic…** in the console. It shows the exact TX/RX JSON
+   lines, including heartbeats and the gateway's rejection reason, without
+   changing what is sent.
 
 ## Bandwidth and camera settings
 

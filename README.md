@@ -148,7 +148,8 @@ The first run downloads `yolo11n.pt` through Ultralytics. All tests run on CPU.
    ```
 
    Decisions are appended to `logs/decisions.jsonl`. Add `--display` to see the
-   annotated tiles, or `--dry-run` to run without any gateway at all.
+   annotated tiles, `--show-wire` to print every exact request and reply, or
+   `--dry-run` to run without any gateway at all.
 
 ### Trying the hypothetical three-phase path
 
@@ -267,6 +268,28 @@ heartbeat and with the sequence reset; the client handshakes with a heartbeat,
 then starts at 1. Heartbeats are sent every second only while the decision loop
 has ticked within 2 s and the required cameras are fresh; a traffic request
 does not refresh freshness.
+
+## Seeing exact gateway traffic
+
+`--show-wire` prints every newline-delimited JSON line the client sends and
+receives, including the handshake and heartbeats:
+
+```bash
+python main.py --config config.yaml --mock-gateway --show-wire
+```
+
+```text
+TX {"type":"HEARTBEAT"}
+RX {"type":"GATEWAY_ACK","status":"HEARTBEAT_OK"}
+TX {"type":"TRAFFIC_REQUEST","movement":"MAIN","green_time":15,"priority":"NORMAL","sequence":1}
+RX {"type":"GATEWAY_ACK","status":"CONTROLLER_ACCEPTED","sequence":1,"uno_ack":"ACK:REQUEST_MAIN,15"}
+```
+
+In the operator console, **Controls → Wire traffic…** opens a live window with
+the same TX/RX lines and a **Copy all** button. The transcript is in memory only,
+bounded to the newest 1,000 lines, and does not add anything to the decision log.
+It shows the JSON before parsing, so a malformed or rejected reply is visible
+exactly as it arrived.
 
 ## Decision log
 

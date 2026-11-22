@@ -36,6 +36,7 @@ from app.snapshots import (
     RecommendationView,
     UiSnapshot,
     UnitView,
+    WireLineView,
     frozen_mapping,
 )
 from app.system_info import process_usage, system_usage
@@ -61,6 +62,7 @@ class AppController:
         mock_gateway: bool = False,
         detector_factory: Optional[Callable[[Any], Any]] = None,
         gateway: Optional[Any] = None,
+        wire_listener: Optional[Callable[[Any], None]] = None,
         annotate_frames: bool = True,
     ) -> None:
         self.config = config
@@ -91,6 +93,7 @@ class AppController:
             detector_factory=detector_factory,
             gateway=gateway,
             on_tick=self._on_tick,
+            wire_listener=wire_listener,
             annotate_frames=annotate_frames,
             draw_stats=False,
         )
@@ -117,6 +120,17 @@ class AppController:
     def decisions(self) -> list[dict]:
         with self._lock:
             return [dict(entry) for entry in self._decisions]
+
+    def wire_transcript(self) -> tuple[WireLineView, ...]:
+        """Exact gateway TX/RX lines, copied for the UI thread."""
+        gateway = self.orchestrator.gateway
+        wire = getattr(gateway, "wire", None)
+        if wire is None:
+            return ()
+        return tuple(
+            WireLineView(at=entry.at, direction=entry.direction, json=entry.json)
+            for entry in wire.entries()
+        )
 
     # -- lifecycle ---------------------------------------------------------
 
