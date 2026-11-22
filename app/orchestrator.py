@@ -29,7 +29,7 @@ from app.config import AppConfig, CameraConfig, build_source
 from app.decision_log import DecisionLog
 from camera.manager import CameraManager
 from decision.engine import Decision, DecisionEngine
-from decision.models import ApproachMetrics, Recommendation
+from decision.models import APPROACH_LAYOUT, ApproachMetrics, Recommendation
 from detection.vehicle_detector import VehicleDetector, configure_runtime_threads
 from gateway.adapter import ProtocolAdapter
 from gateway.client import GatewayClient, RequestResult
@@ -467,6 +467,7 @@ class Orchestrator:
         return {
             "ts": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
             "monotonic_s": round(now, 3),
+            "approach_layout": APPROACH_LAYOUT,
             "mode": self.config.gateway_mode,
             "health_gate_open": gate_open,
             "cameras": {

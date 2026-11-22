@@ -50,8 +50,8 @@ def test_two_pipelines_keep_track_and_counter_state_separate(make_video):
         "idle.avi", start_x=100, start_y=72, step_y=0, frames=25, moving=False
     )
 
-    pipeline_a = _build_pipeline("cam_a", "MAIN", crossing_path)
-    pipeline_b = _build_pipeline("cam_b", "SEC_A", idle_path)
+    pipeline_a = _build_pipeline("cam_a", "MAIN_A", crossing_path)
+    pipeline_b = _build_pipeline("cam_b", "SEC", idle_path)
 
     # Structural isolation: nothing shared.
     assert pipeline_a.tracker is not pipeline_b.tracker
@@ -80,8 +80,8 @@ def test_two_pipelines_keep_track_and_counter_state_separate(make_video):
     # Per-approach metrics stay separate and carry the right identity.
     metrics_a = pipeline_a.latest_metrics()
     metrics_b = pipeline_b.latest_metrics()
-    assert metrics_a.approach_id == "MAIN"
-    assert metrics_b.approach_id == "SEC_A"
+    assert metrics_a.approach_id == "MAIN_A"
+    assert metrics_b.approach_id == "SEC"
     assert metrics_a.camera_id == "cam_a"
     assert metrics_b.camera_id == "cam_b"
     assert metrics_a.vehicle_count_in_region >= 1

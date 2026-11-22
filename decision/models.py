@@ -15,6 +15,9 @@ CONGESTION_WEIGHTS: dict[str, float] = {"Low": 0.0, "Moderate": 1.0, "High": 2.0
 #: Movements the current firmware accepts. No other value is sent by default.
 WIRE_MOVEMENTS: tuple[str, ...] = ("MAIN", "SECONDARY")
 
+#: Version of the approach/unit layout written to new decision-log records.
+APPROACH_LAYOUT: str = "v2"
+
 #: Hard protocol range for ``green_time``.
 GREEN_TIME_MIN = 5
 GREEN_TIME_MAX = 30

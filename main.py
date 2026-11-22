@@ -104,7 +104,7 @@ def config_from_source(spec: str) -> AppConfig:
     if kind == "webcam":
         camera = CameraConfig(
             id="demo_webcam",
-            approach="MAIN",
+            approach="MAIN_A",
             source="webcam",
             index=int(value or 0),
             flip=True,
@@ -115,7 +115,7 @@ def config_from_source(spec: str) -> AppConfig:
             raise ConfigError("--source file: needs a video path")
         camera = CameraConfig(
             id="demo_file",
-            approach="MAIN",
+            approach="MAIN_A",
             source="file",
             path=value,
             loop=True,
@@ -127,7 +127,7 @@ def config_from_source(spec: str) -> AppConfig:
             raise ConfigError("--source rtsp: needs an rtsp:// URL")
         camera = CameraConfig(
             id="demo_rtsp",
-            approach="MAIN",
+            approach="MAIN_A",
             source="rtsp",
             url=value,
             target_fps=12.0,
@@ -139,7 +139,7 @@ def config_from_source(spec: str) -> AppConfig:
 
     return AppConfig(
         cameras=(camera,),
-        units=(ServingUnit("MAIN", ("MAIN",)),),
+        units=(ServingUnit("MAIN", ("MAIN_A",)),),
         decision=DecisionSettings(),
         gateway=GatewayConfig(),
         health=HealthConfig(),
@@ -183,7 +183,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         elif config.gateway_mode == THREE_PHASE_MODE:
             _log.warning(
                 "three_phase mode with --mock-gateway: start the mock with "
-                "--movements MAIN,SECONDARY_A,SECONDARY_B or it will reject "
+                "--movements MAIN_A,MAIN_B,SECONDARY or it will reject "
                 "the proposed names"
             )
 

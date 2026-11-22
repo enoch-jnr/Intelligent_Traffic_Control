@@ -60,7 +60,7 @@ class DecisionSettings:
     max_metrics_age_s: float = 2.0
     idle_score_threshold: float = 1.0
 
-    # compat mode: how {SEC_A, SEC_B} demand becomes one SECONDARY demand
+    # compat mode: how MAIN_A + MAIN_B demand becomes one MAIN demand
     aggregation: str = "sum"
 
     # health policy: by default any unhealthy approach suppresses output

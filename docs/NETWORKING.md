@@ -9,9 +9,9 @@ versa). All commands are examples; substitute your interface names.
 
 ```text
                  wired Ethernet (cameras)                 Wi-Fi (gateway)
-  CAM_MAIN  .11 ─┐                                       ┌─ ESP32-S3 SoftAP
-  CAM_SEC_A .12 ─┼── switch ── laptop eth0 192.168.50.2 ─┤  192.168.4.1:3333
-  CAM_SEC_B .13 ─┘                                       └─ (no internet)
+  CAM_MAIN_A .12 ─┐                                      ┌─ ESP32-S3 SoftAP
+  CAM_MAIN_B .13 ─┼── switch ── laptop eth0 192.168.50.2 ─┤  192.168.4.1:3333
+  CAM_SEC    .11 ─┘                                      └─ (no internet)
 ```
 
 Two independent L2 networks. The laptop is the only device on both.

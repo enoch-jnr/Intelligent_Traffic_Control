@@ -1,6 +1,6 @@
 # Migration: SEC, MAIN_A, MAIN_B
 
-**Status: implementation in progress.** This document is the A0 audit for the
+**Status: implemented and guarded.** This document is the A0 audit for the
 approach rename. It is deliberately retained as the only place (with the
 migration error and guard test) where the retired identifiers remain.
 

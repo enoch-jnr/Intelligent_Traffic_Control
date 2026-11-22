@@ -5,7 +5,7 @@
 [![Ultralytics](https://img.shields.io/badge/Ultralytics-YOLO-orange.svg)](https://www.ultralytics.com/)
 
 The AI host for **Smarti**, a single T-junction traffic controller. Three
-cameras watch `MAIN`, `SEC_A` and `SEC_B` over wired Ethernet; the host detects
+cameras watch `MAIN_A`, `MAIN_B` and `SEC` over wired Ethernet; the host detects
 and tracks vehicles, turns each approach into demand metrics, decides **which
 serving unit deserves green next and for how long**, and sends that as an
 **advisory** request to an ESP32-S3 gateway over Wi-Fi. The ESP32 and the
@@ -21,9 +21,9 @@ lamps.
 ```mermaid
 flowchart LR
     subgraph Cameras["Wired Ethernet (one switch)"]
-        C1["MAIN camera"]
-        C2["SEC_A camera"]
-        C3["SEC_B camera"]
+        C1["MAIN_A camera"]
+        C2["MAIN_B camera"]
+        C3["SEC camera"]
     end
 
     C1 --> S1["RtspSource"]
@@ -63,12 +63,13 @@ separate, pure adapter at the edge.
 
 | Mode | Units | Wire movement | Current firmware |
 | --- | --- | --- | --- |
-| `compat_two_phase` (default) | `MAIN`, `SECONDARY` (`SEC_A`+`SEC_B`) | `MAIN`, `SECONDARY` | **yes** |
-| `three_phase` (opt-in, disabled) | `MAIN`, `SEC_A`, `SEC_B` | `MAIN`, `SECONDARY_A`, `SECONDARY_B` (**proposed**) | **no** |
+| `compat_two_phase` (default) | `MAIN`, `SECONDARY` (`MAIN_A`+`MAIN_B`) | `MAIN`, `SECONDARY` | **yes** |
+| `three_phase` (opt-in, disabled) | `MAIN_A`, `MAIN_B`, `SEC` | `MAIN_A`, `MAIN_B`, `SECONDARY` (**proposed**) | **no** |
 
 The current Uno drives two approaches, so a three-approach T junction **cannot
-be fully controlled yet**. The default is a workaround: `SEC_A` and `SEC_B`
-share one `SECONDARY` request, and the Uno cannot tell them apart. Three-phase
+be fully controlled yet**. The default is a workaround: `MAIN_A` and `MAIN_B`
+share one `MAIN` request, and the Uno cannot tell them apart. `SEC` is the
+`SECONDARY` request. Three-phase
 mode refuses to start unless it is enabled explicitly **and** the movement
 names are written out; it then logs a prominent warning. The proposed firmware
 design is in [`docs/FIRMWARE_THREE_PHASE_PROPOSAL.md`](docs/FIRMWARE_THREE_PHASE_PROPOSAL.md)
@@ -119,8 +120,8 @@ The first run downloads `yolo11n.pt` through Ultralytics. All tests run on CPU.
 
    ```yaml
    cameras:
-     - id: cam_main
-       approach: MAIN
+     - id: cam_main_a
+       approach: MAIN_A
        source: file
        path: samples/main.avi
        loop: true
@@ -154,7 +155,7 @@ The first run downloads `yolo11n.pt` through Ultralytics. All tests run on CPU.
 For host-side testing only, against firmware that does not exist:
 
 ```bash
-python -m gateway.mock_gateway --movements MAIN,SECONDARY_A,SECONDARY_B
+python -m gateway.mock_gateway --movements MAIN_A,MAIN_B,SECONDARY
 ```
 
 Use the three-unit layout and `gateway.mode: three_phase` with
@@ -211,7 +212,7 @@ is a startup error. Relative file paths are resolved against the config file.
 | Section | Purpose |
 | --- | --- |
 | `cameras` | `id`, `approach`, `source` (`rtsp`/`webcam`/`file`), `url`/`index`/`path`, `flip`, `target_fps`, normalized `polygon`, `count_line`, `width`/`height`, `stale_after_s`. |
-| `decision.units` | Serving layout: `{id, approaches}` entries. Compat: `MAIN` + `SECONDARY`; three-phase: `MAIN`, `SEC_A`, `SEC_B`. |
+| `decision.units` | Serving layout: `{id, approaches}` entries. Compat: `MAIN` (`MAIN_A`+`MAIN_B`) + `SECONDARY` (`SEC`); three-phase: `MAIN_A`, `MAIN_B`, `SEC`. |
 | `decision` | Weights, `base_green_s`, `k_green_s`, `score_saturation`, green min/max (inside 5–30), `min_delta_s`, `min_interval_s`, starvation and smoothing windows, `aggregation: sum|max`, `yellow_s`, `all_red_s`, `max_red_s`, `green_memory_s`, health policy. |
 | `gateway` | `mode`, host, port, connect/handshake/request timeouts, heartbeat interval, reconnect bounds, request backoff; optional `three_phase: {enabled, movements}`. |
 | `health` | Frame freshness, tick interval, tick timeout, `required_cameras` (`null` = all). |
@@ -257,7 +258,7 @@ lines are discarded to the next newline.
 | Host → gateway | `{"type":"STATUS_REQUEST"}` | `{"type":"UNO_STATUS","detail":"STATUS:..."}` |
 | Host → gateway | `{"type":"TRAFFIC_REQUEST","movement":"SECONDARY","green_time":15,"priority":"NORMAL","sequence":104}` | `{"type":"GATEWAY_ACK","status":"CONTROLLER_ACCEPTED","sequence":104,"uno_ack":"ACK:REQUEST_SIDE,15"}` |
 
-`movement` is `MAIN`/`SECONDARY` in compat mode. `SECONDARY_A`/`SECONDARY_B` are
+`movement` is `MAIN`/`SECONDARY` in compat mode. `MAIN_A`/`MAIN_B`/`SECONDARY` are
 proposals that only a hypothetical gateway (or the mock started with
 `--movements`) accepts. Rejections are `{"type":"ERROR","reason":"..."}` with
 `AI_LINK_OFFLINE`, `INVALID_FIELDS`, `OUT_OF_POLICY`, `STALE_SEQUENCE`,
@@ -383,11 +384,11 @@ Intelligent_Traffic_Control/
 ## Limitations and open items
 
 - **The T junction cannot be fully controlled yet.** Current firmware accepts
-  only `MAIN`/`SECONDARY`, so the default compat mode merges `SEC_A` and
-  `SEC_B`; the Uno cannot tell them apart. Three-phase control needs the
+  only `MAIN`/`SECONDARY`, so the default compat mode merges `MAIN_A` and
+  `MAIN_B` into `MAIN`, and sends `SEC` as `SECONDARY`. Three-phase control needs the
   firmware work in the proposal document.
-- **Three-phase movement names are unconfirmed proposals.** `SECONDARY_A` and
-  `SECONDARY_B` exist only in config, the adapter and the hypothetical mock.
+- **Three-phase movement names are unconfirmed proposals.** `MAIN_A`, `MAIN_B`
+  and `SECONDARY` exist only in config, the adapter and the hypothetical mock.
 - **Yellow, all-red and `max_red_s` are placeholders.** 3 s / 1 s / 90 s match
   the README, not verified firmware timings.
 - **One approach green at a time is an assumption.** Simultaneous movements are

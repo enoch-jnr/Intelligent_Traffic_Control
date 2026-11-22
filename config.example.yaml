@@ -7,28 +7,30 @@
 
 cameras:
   # Three approaches, one camera each, all on the wired Ethernet switch.
-  # Use each camera's SUB-stream (720p, H.264, 5-15 fps), not the main stream.
-  - id: cam_main
-    approach: MAIN
-    source: rtsp
-    url: "rtsp://${CAM_USER}:${CAM_PASS}@192.168.50.11:554/stream2"  # path varies by vendor
-    flip: false
-    target_fps: 8
-    count_line: 0.4
-    # polygon: [[0.1, 0.3], [0.9, 0.3], [1.0, 0.95], [0.0, 0.95]]
-
-  - id: cam_sec_a
-    approach: SEC_A
+  # The role swap keeps each physical source where it was: the old main
+  # camera is now SEC (.11), and the old side cameras are MAIN_A (.12) and
+  # MAIN_B (.13). Use each camera's SUB-stream (720p, H.264, 5-15 fps).
+  - id: cam_main_a
+    approach: MAIN_A
     source: rtsp
     url: "rtsp://${CAM_USER}:${CAM_PASS}@192.168.50.12:554/stream2"
     flip: false
     target_fps: 8
     count_line: 0.4
+    # polygon: [[0.1, 0.3], [0.9, 0.3], [1.0, 0.95], [0.0, 0.95]]
 
-  - id: cam_sec_b
-    approach: SEC_B
+  - id: cam_main_b
+    approach: MAIN_B
     source: rtsp
     url: "rtsp://${CAM_USER}:${CAM_PASS}@192.168.50.13:554/stream2"
+    flip: false
+    target_fps: 8
+    count_line: 0.4
+
+  - id: cam_sec
+    approach: SEC
+    source: rtsp
+    url: "rtsp://${CAM_USER}:${CAM_PASS}@192.168.50.11:554/stream2"  # path varies by vendor
     flip: false
     target_fps: 8
     count_line: 0.4
@@ -36,38 +38,38 @@ cameras:
   # --- Development without cameras -----------------------------------------
   # Replace the entries above with looping video files:
   #
-  # - id: cam_main
-  #   approach: MAIN
+  # - id: cam_main_a
+  #   approach: MAIN_A
   #   source: file
-  #   path: samples/main.avi
+  #   path: samples/main_a.avi
   #   loop: true
   #   realtime: true
   #   target_fps: 8
   #
   # Or a local webcam:
   #
-  # - id: cam_main
-  #   approach: MAIN
+  # - id: cam_main_a
+  #   approach: MAIN_A
   #   source: webcam
   #   index: 0
   #   flip: true
 
 decision:
   # Serving units: what the engine allocates green to. The current firmware
-  # speaks only MAIN and SECONDARY, so SEC_A and SEC_B share the SECONDARY
-  # unit in this compat layout. See the three-phase layout in the README.
+  # speaks only MAIN and SECONDARY, so MAIN_A + MAIN_B share the MAIN unit and
+  # SEC is the SECONDARY unit in this compat layout. See the README.
   units:
     - id: MAIN
-      approaches: [MAIN]
+      approaches: [MAIN_A, MAIN_B]
     - id: SECONDARY
-      approaches: [SEC_A, SEC_B]
+      approaches: [SEC]
 
   # Target T-junction layout. Requires gateway.mode: three_phase and firmware
   # support that does not exist yet. Uncommenting this alone is not enough.
   # units:
-  #   - {id: MAIN,  approaches: [MAIN]}
-  #   - {id: SEC_A, approaches: [SEC_A]}
-  #   - {id: SEC_B, approaches: [SEC_B]}
+  #   - {id: MAIN_A, approaches: [MAIN_A]}
+  #   - {id: MAIN_B, approaches: [MAIN_B]}
+  #   - {id: SEC,    approaches: [SEC]}
 
   weights:
     queue: 1.0        # per vehicle inside the road region
@@ -96,7 +98,7 @@ decision:
   smoothing_window_s: 5
   max_metrics_age_s: 2
   idle_score_threshold: 1.0
-  aggregation: sum       # sum|max for {SEC_A, SEC_B} -> SECONDARY demand
+  aggregation: sum       # sum|max for {MAIN_A, MAIN_B} -> MAIN demand
   require_all_approaches_healthy: true
 
 # Gateway protocol mode.
@@ -121,9 +123,9 @@ gateway:
   # three_phase:
   #   enabled: false
   #   movements:
-  #     MAIN: MAIN
-  #     SEC_A: SECONDARY_A
-  #     SEC_B: SECONDARY_B
+  #     MAIN_A: MAIN_A
+  #     MAIN_B: MAIN_B
+  #     SEC: SECONDARY
 
 health:
   max_frame_age_s: 2.0

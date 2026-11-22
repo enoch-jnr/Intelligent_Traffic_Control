@@ -364,7 +364,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             "comma-separated movements to accept. The default mimics the "
             "current firmware. Any other value is HYPOTHETICAL: it lets the "
             "host adapter be tested against a future gateway that does not "
-            "exist yet, e.g. MAIN,SECONDARY_A,SECONDARY_B."
+            "exist yet, e.g. MAIN_A,MAIN_B,SECONDARY."
         ),
     )
     args = parser.parse_args(argv)

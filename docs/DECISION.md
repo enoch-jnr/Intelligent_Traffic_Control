@@ -24,16 +24,16 @@ from `decision.units`; the engine never hard-codes an approach or a wire name.
 # Compat layout (current firmware): two units, sides merged.
 decision:
   units:
-    - {id: MAIN,      approaches: [MAIN]}
-    - {id: SECONDARY, approaches: [SEC_A, SEC_B]}
+    - {id: MAIN,      approaches: [MAIN_A, MAIN_B]}
+    - {id: SECONDARY, approaches: [SEC]}
   aggregation: sum
 
 # Three-phase layout (target; needs new firmware).
 decision:
   units:
-    - {id: MAIN,  approaches: [MAIN]}
-    - {id: SEC_A, approaches: [SEC_A]}
-    - {id: SEC_B, approaches: [SEC_B]}
+    - {id: MAIN_A, approaches: [MAIN_A]}
+    - {id: MAIN_B, approaches: [MAIN_B]}
+    - {id: SEC,    approaches: [SEC]}
   aggregation: sum
 ```
 
@@ -42,7 +42,7 @@ Rules enforced at startup:
 - unit ids are unique, and an approach belongs to exactly one unit;
 - every camera approach is in a unit, and every unit approach has a camera;
 - compat mode accepts only the units `MAIN`/`SECONDARY`;
-- three-phase mode requires exactly `MAIN`/`SEC_A`/`SEC_B`, is disabled by
+- three-phase mode requires exactly `MAIN_A`/`MAIN_B`/`SEC`, is disabled by
   default, and needs explicit movement names.
 
 `aggregation: sum` or `max` applies only when a unit has more than one
@@ -168,13 +168,13 @@ and writes both to the JSONL log alongside the gateway reply.
 
 ## Wire modes (the protocol edge)
 
-The engine does not know `MAIN`, `SECONDARY`, `SECONDARY_A` or any other wire
-name. `gateway/adapter.py` maps units to movements:
+The engine does not know `MAIN_A`, `MAIN_B`, `SEC`, `SECONDARY` or any other
+wire name. `gateway/adapter.py` maps units to movements:
 
 | `gateway.mode` | Units | Wire movement | Current firmware |
 | --- | --- | --- | --- |
 | `compat_two_phase` (default) | `MAIN`, `SECONDARY` | same names | yes |
-| `three_phase` (opt-in) | `MAIN`, `SEC_A`, `SEC_B` | `MAIN`, `SECONDARY_A`, `SECONDARY_B` (**proposed**) | **no** |
+| `three_phase` (opt-in) | `MAIN_A`, `MAIN_B`, `SEC` | `MAIN_A`, `MAIN_B`, `SECONDARY` (**proposed**) | **no** |
 
 Three-phase needs `gateway.three_phase.enabled: true` and explicit movement
 names, and logs a prominent warning at startup. The proposal for the firmware

@@ -19,14 +19,14 @@ def _raw(**overrides):
     raw = {
         "cameras": [
             {
-                "id": "cam_main",
-                "approach": "MAIN",
+                "id": "cam_main_a",
+                "approach": "MAIN_A",
                 "source": "file",
                 "path": "missing.avi",
                 "target_fps": 30,
             }
         ],
-        "decision": {"units": [{"id": "MAIN", "approaches": ["MAIN"]}]},
+        "decision": {"units": [{"id": "MAIN", "approaches": ["MAIN_A"]}]},
     }
     raw.update(overrides)
     return raw
@@ -137,7 +137,7 @@ def _frame(index: int):
 def test_load_shedding_steps_down_and_logs(caplog):
     pipeline = CameraPipeline(
         "cam",
-        "MAIN",
+        "MAIN_A",
         FileSource("cam", "missing.avi", realtime=False),
         _SlowDetector(),
         PipelineConfig(target_fps=4, min_fps=2, adaptive_fps=True),
@@ -153,7 +153,7 @@ def test_load_shedding_steps_down_and_logs(caplog):
 def test_dropped_frames_count_source_gaps():
     pipeline = CameraPipeline(
         "cam",
-        "MAIN",
+        "MAIN_A",
         FileSource("cam", "missing.avi", realtime=False),
         _SlowDetector(delay=0),
         PipelineConfig(target_fps=30, adaptive_fps=False),

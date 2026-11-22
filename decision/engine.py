@@ -5,7 +5,7 @@ orchestrator feeds it :class:`ApproachMetrics` and writes whatever it returns.
 
 The engine allocates green to **serving units**, never to wire movements. A
 unit is one or more named approaches; the layout comes from configuration
-(three units for a three-phase T junction, two units with ``SEC_A``/``SEC_B``
+(three units for a three-phase T junction, two units with ``MAIN_A``/``MAIN_B``
 merged for the current two-phase firmware). Nothing here knows or validates the
 wire protocol names -- that is the protocol adapter's job at the edge.
 """

@@ -19,9 +19,9 @@ A T junction with three signal heads, one camera per approach:
 
 | Approach | Head | Camera |
 | --- | --- | --- |
-| `MAIN` | main road | one |
-| `SEC_A` | side road A | one |
-| `SEC_B` | side road B | one |
+| `MAIN_A` | main road, arm A | one |
+| `MAIN_B` | main road, arm B | one |
+| `SEC` | side road | one |
 
 **Invariant: exactly one approach is green at a time.** Yellow and all-red
 clearance separate every ordered pair of greens. Nothing in this proposal
@@ -44,9 +44,9 @@ Proposed accepted set for the new gateway:
 
 | Approach | Proposed movement |
 | --- | --- |
-| `MAIN` | `MAIN` |
-| `SEC_A` | `SECONDARY_A` |
-| `SEC_B` | `SECONDARY_B` |
+| `MAIN_A` | `MAIN_A` |
+| `MAIN_B` | `MAIN_B` |
+| `SEC` | `SECONDARY` |
 
 These three names are **unconfirmed proposals**. They are not in the current
 protocol, and the host will not send them unless three-phase mode is explicitly
@@ -67,12 +67,12 @@ ACK. The exact UART text is the firmware owners' choice. The following is an
 **illustrative proposal**, not the current format:
 
 ```text
-Gateway -> Uno:  REQ MAIN 15
-Gateway -> Uno:  REQ SEC_A 18
-Gateway -> Uno:  REQ SEC_B 12
-Uno -> Gateway:  ACK:REQUEST_MAIN,15
-Uno -> Gateway:  ACK:REQUEST_SEC_A,18
-Uno -> Gateway:  ACK:REQUEST_SEC_B,12
+Gateway -> Uno:  REQ MAIN_A 15
+Gateway -> Uno:  REQ MAIN_B 18
+Gateway -> Uno:  REQ SEC 12
+Uno -> Gateway:  ACK:REQUEST_MAIN_A,15
+Uno -> Gateway:  ACK:REQUEST_MAIN_B,18
+Uno -> Gateway:  ACK:REQUEST_SEC,12
 Uno -> Gateway:  NACK:OUT_OF_POLICY
 ```
 
@@ -101,7 +101,7 @@ request", never "the lamp changed".
 Keep the current envelope for compatibility:
 
 ```json
-{"type":"GATEWAY_ACK","status":"CONTROLLER_ACCEPTED","sequence":104,"uno_ack":"ACK:REQUEST_SEC_A,18"}
+{"type":"GATEWAY_ACK","status":"CONTROLLER_ACCEPTED","sequence":104,"uno_ack":"ACK:REQUEST_SEC,18"}
 ```
 
 Proposed additions:
@@ -138,14 +138,14 @@ compatible.
 
 ### 2.1 State machine
 
-Proposed fixed round-robin order: `MAIN` → `SEC_A` → `SEC_B` → `MAIN` …
+Proposed fixed round-robin order: `MAIN_A` → `MAIN_B` → `SEC` → `MAIN_A` …
 The order is the Uno's choice; the host does not request an order.
 
 ```text
-MAIN_GREEN --> MAIN_YELLOW --> ALL_RED --> SEC_A_GREEN --> SEC_A_YELLOW
+MAIN_A_GREEN --> MAIN_A_YELLOW --> ALL_RED --> MAIN_B_GREEN --> MAIN_B_YELLOW
      ^                                          |
      |                                          v
-SEC_B_GREEN <-- ALL_RED <-- SEC_B_YELLOW <-- ALL_RED
+SEC_GREEN <-- ALL_RED <-- SEC_YELLOW <-- ALL_RED
 ```
 
 States and timers:
@@ -176,7 +176,7 @@ States and timers:
 - Never apply a request to the approach currently green.
 - `MAIN`/`SECONDARY` from a legacy host: keep supporting them. Proposed
   mapping: `SECONDARY` means "serve the side pair"; the Uno alternates
-  `SEC_A`/`SEC_B` internally under its own cycle so the one-green invariant
+  `MAIN_A`/`MAIN_B` internally under its own cycle so the one-green invariant
   still holds. Confirm this with the traffic engineer: it changes which side
   road gets green, and the legacy host cannot express a preference.
 
@@ -185,7 +185,7 @@ States and timers:
 Current behaviour: no fresh heartbeat for 3 s ⇒ autonomous cycle. Proposed
 extension to three approaches:
 
-- Run a fixed round-robin over `MAIN`, `SEC_A`, `SEC_B` with default green
+- Run a fixed round-robin over `MAIN_A`, `MAIN_B`, `SEC` with default green
   (for example 15 s; placeholder), yellow 3 s, all-red 1 s.
 - Clear all pending requests when the link is declared lost, so stale requests
   cannot fire after reconnection.
@@ -199,15 +199,15 @@ extension to three approaches:
 
 | Host | Firmware | Behaviour |
 | --- | --- | --- |
-| compat_two_phase (default) | current two-approach | Supported today. `SEC_A` and `SEC_B` are merged into `SECONDARY`; the Uno cannot tell them apart. |
+| compat_two_phase (default) | current two-approach | Supported today. `MAIN_A` and `MAIN_B` are merged into `MAIN`; `SEC` sends `SECONDARY`. The Uno cannot tell `MAIN_A` from `MAIN_B`. |
 | three_phase | current two-approach | **Refused at startup.** Movement names are unknown to the gateway. |
 | compat_two_phase | proposed three-approach firmware | Must keep working; `SECONDARY` is treated as the side pair (2.3). |
 | three_phase | proposed three-approach firmware | Target state, after the checklist below. |
 
 ### 3.2 Checklist before setting `three_phase.enabled: true`
 
-- [ ] New gateway firmware accepts exactly `MAIN`, `SECONDARY_A`,
-      `SECONDARY_B` and still accepts legacy `MAIN`/`SECONDARY`.
+- [ ] New gateway firmware accepts exactly `MAIN_A`, `MAIN_B`,
+      `SECONDARY` and still accepts legacy `MAIN`/`SECONDARY`.
 - [ ] Uno implements the three-phase cycle with the one-green invariant and
       clearance between every ordered pair.
 - [ ] ACK text for the new movements is frozen and documented.
