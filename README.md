@@ -216,6 +216,7 @@ is a startup error. Relative file paths are resolved against the config file.
 | `gateway` | `mode`, host, port, connect/handshake/request timeouts, heartbeat interval, reconnect bounds, request backoff; optional `three_phase: {enabled, movements}`. |
 | `health` | Frame freshness, tick interval, tick timeout, `required_cameras` (`null` = all). |
 | `detection` | Model path, `device: auto|cuda|cpu`, confidence, optional `imgsz`. |
+| `performance` | `profile: auto|low|balanced|high`, optional target fps, model size, preview fps/scale, thread caps, `adaptive_fps`, `min_fps`. Auto resolves to low on <= 8.5 GB. |
 | `logging` | Console level, JSONL path, rotation size and backup count. |
 | `display` | Default for the annotated window. |
 
@@ -294,7 +295,7 @@ without `--gui` nothing changes. PySide6 is the only added dependency.
 
 ```bash
 python main.py --config config.yaml --gui                 # real gateway
-python main.py --config config.yaml --gui --mock-gateway  # mock, amber banner
+python main.py --config config.yaml --gui --mock-gateway  # mock gateway
 python main.py --config config.yaml --gui --dry-run       # no gateway at all
 ```
 
@@ -306,8 +307,9 @@ python -m gateway.mock_gateway
 
 Press **START** in the bottom bar (or F5). The console shows the three live
 annotated tiles, the advisory T-junction schematic, system state, live events,
-the log and the decision table. A persistent amber banner marks simulation
-(mock gateway, dry run or the three-phase proposal).
+the log and the decision table. A single always-visible menu-bar badge names
+the mode: `SIMULATION:DRY-RUN`, `SIMULATION:MOCK-GATEWAY`,
+`SIMULATION:THREE-PHASE`, `SIMULATION:FILE-SOURCES` or `LIVE:COMPAT-2PH`.
 
 | Control | Behaviour |
 | --- | --- |
@@ -323,13 +325,17 @@ the log and the decision table. A persistent amber banner marks simulation
 
 The console is advisory: it shows the last recommendation, the controller's
 reply and derived expected red. It never draws a lamp as physical state. Tile
-context menus add polygon/line toggles, flip, snapshot and fullscreen. Focus
-mode (F11) shows one large camera and two small ones. Light theme and reduced
-motion are in Settings and persist with the window layout.
+context menus add polygon/line toggles, flip and snapshot. Focus mode (F11)
+shows one large camera and two small ones; no tile opens a second window.
+View > Video preview can be turned off (logs and decisions keep updating),
+and Preview quality selects 4/8/12 fps. Light theme and reduced motion are in
+Settings and persist with the window layout.
 
-A representative screenshot (synthetic video, dry run, offscreen render) is
-[`docs/ui/console.png`](docs/ui/console.png). No real camera or controller was
-used for it.
+Representative screenshots (synthetic video, mock gateway, offscreen renders)
+are in [`docs/ui/after/`](docs/ui/after/). No real camera or controller was used
+for them. The measured fix pass and benchmark method are documented in
+[`docs/GUI_FIXES.md`](docs/GUI_FIXES.md) and
+[`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
 
 ## Tests
 

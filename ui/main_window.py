@@ -389,6 +389,7 @@ class MainWindow(QMainWindow):
         scroll.setWidgetResizable(True)
         scroll.setMinimumWidth(280)
         scroll.setMaximumWidth(430)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         sidebar = QWidget()
         layout = QVBoxLayout(sidebar)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -398,7 +399,10 @@ class MainWindow(QMainWindow):
         system.setObjectName("mono")
         system.setWordWrap(True)
         system.setContentsMargins(10, 8, 10, 8)
-        system.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        system.setMinimumWidth(0)
+        system.setSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Minimum
+        )
         self.system_label = system
         layout.addWidget(
             CollapsibleSection(
@@ -981,9 +985,7 @@ class MainWindow(QMainWindow):
         )
         self.clock_chip.set_state(datetime.now().strftime("%H:%M:%S"), "info")
 
-        fps = ", ".join(
-            f"{camera.approach} {camera.fps:.1f}" for camera in snapshot.cameras
-        )
+        fps = " / ".join(f"{camera.fps:.1f}" for camera in snapshot.cameras)
         processing = []
         for camera in snapshot.cameras:
             line = (
@@ -1006,7 +1008,7 @@ class MainWindow(QMainWindow):
                     f"Reason: {snapshot.gate_reason}",
                     f"Device: {self.controller.config.detection.device} · "
                     f"imgsz {self.controller.config.performance.imgsz}",
-                    f"Camera fps: {fps or 'no data'}",
+                    f"Source fps: {fps or 'no data'}",
                     *processing,
                     f"App CPU: {_percent(snapshot.app_cpu_percent)}   "
                     f"RSS: {'unknown' if snapshot.app_memory_mb is None else f'{snapshot.app_memory_mb:.0f} MB'}",

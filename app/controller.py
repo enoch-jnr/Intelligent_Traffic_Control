@@ -269,6 +269,10 @@ class AppController:
     def snapshot(self) -> UiSnapshot:
         orchestrator = self.orchestrator
         health = orchestrator.manager.health_all()
+        pipeline_metrics = {
+            pipeline.camera_id: pipeline.latest_metrics()
+            for pipeline in orchestrator.pipelines
+        }
         metrics = {
             pipeline.approach_id: pipeline.latest_metrics()
             for pipeline in orchestrator.pipelines
@@ -298,13 +302,13 @@ class AppController:
                 frame_age_s=snapshot.last_frame_age_s,
                 reconnects=snapshot.reconnects,
                 processed_fps=(
-                    metrics[camera_id].processing_fps
-                    if camera_id in metrics
+                    pipeline_metrics[camera_id].processing_fps
+                    if camera_id in pipeline_metrics
                     else 0.0
                 ),
                 inference_ms=(
-                    round(metrics[camera_id].inference_s * 1000, 1)
-                    if camera_id in metrics
+                    round(pipeline_metrics[camera_id].inference_s * 1000, 1)
+                    if camera_id in pipeline_metrics
                     else 0.0
                 ),
                 dropped_frames=(

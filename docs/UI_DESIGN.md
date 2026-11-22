@@ -78,7 +78,7 @@ is created. The existing `--display` path and headless `run()` are unchanged.
 
 Deliberate deviations from the reference: a fourth schematic tile instead of a
 ninth camera, health words instead of a red LIVE dot, no account area, no
-decorative motion, and a warning-coloured simulation banner.
+decorative motion, and a warning-coloured simulation mode badge in the menu bar.
 
 ## 5. Colour tokens
 
@@ -145,8 +145,8 @@ they cannot be mistaken for a status or a physical signal aspect.
 - Missing data is "unknown" (grey + word), never an optimistic default.
 - Destructive actions (Stop, Reset, Release, Shutdown) confirm, state the
   consequence in one sentence and default to Cancel.
-- Simulation (mock gateway, dry run or three-phase) shows a persistent amber
-  banner and mode badge.
+- Simulation (mock gateway, dry run, three-phase, or file sources on a real
+  gateway) shows one persistent `STATE:DETAIL` menu-bar badge.
 - Snapshots are explicit-click only, warn once about people/plates, and are
   never written automatically. Exports contain no images.
 - No sounds by default; reduced motion removes pulsing and any animation.
@@ -155,13 +155,16 @@ they cannot be mistaken for a status or a physical signal aspect.
 
 ## 8. Layout and interaction
 
-Minimum 1280 x 720, resizable; video area ~80% width, sidebar ~20%. The title
-bar, menu bar and status bar never scroll away. Sidebar sections are collapsible
-triangles whose state persists through `QSettings`, as do window geometry,
-theme, overlay visibility and reduced motion.
+Minimum 1280 x 720, resizable. The work area is a vertical splitter (video
+above, Live log/Decisions below) next to a 280-430 px sidebar; its position
+persists. The native title bar, menu bar and status bar never scroll away.
+Sidebar sections are collapsible triangles whose state persists through
+`QSettings`, as do window geometry, theme, overlay visibility, preview state
+and reduced motion.
 
-- 10 fps for video tiles (downscaled copies), 2-4 Hz for tables/panels.
-- Log ring buffer 5,000 lines, inserted in batches; decisions table capped too.
+- One scheduler: video at 4/8/12 fps (or off), panels at 4 Hz, chips at 1 Hz.
+- Log ring buffer 5,000 lines, inserted in batches; decisions are bounded and
+  only refreshed while the dock is visible.
 - UI actions run exports and shutdown in worker threads; the decision loop and
   gateway heartbeat never wait on the GUI.
 - Keyboard: visible focus, logical tab order, shortcuts on every control
@@ -179,7 +182,40 @@ theme, overlay visibility and reduced motion.
 6. Controls, confirmations, worker exports, diagnostics, shortcuts.
 7. Accessibility/polish, light theme, persisted layout, README and screenshots.
 
-## 10. Implementation status and measured impact
+## 10. Fix pass: compact layout and calibrated rendering
+
+The follow-up pass removed the in-window title and amber banner. Identity is
+now only the native window title; simulation/live state is one menu-bar badge
+with exact text `SIMULATION:DRY-RUN`, `SIMULATION:MOCK-GATEWAY`,
+`SIMULATION:THREE-PHASE`, `SIMULATION:FILE-SOURCES` or `LIVE:COMPAT-2PH` and a
+tooltip. It cannot be dismissed.
+
+The video area and Live log/Decisions dock are a vertical `QSplitter` with
+persisted sizes. At 1280x720 the dock is at least 312 px, the log viewport is
+242 px and eight 22 px decision rows fit; the dock is ~47 % of the work area
+because that is the smallest split that satisfies both acceptance measures.
+The previous 60/40 target could not fit 240 px of log plus its tab and compact
+filter row. Double-clicking a dock tab maximises it and double-clicking again
+restores the split. Menu, tab and log-button padding is compact; tiles can
+shrink to 108 px and letterbox rather than forcing a taller grid.
+
+The video path now delivers one INTER_AREA-downscaled frame to the displayed
+size. Tiles are opaque, use a dirty frame version, wrap the owned frame buffer
+without a second copy, and scale only once per frame or resize. The blue film
+was a translucent QPainter brush left over from the health badge and reused by
+the border; the border now clears it. LIVE has no tint. Dimming is limited to
+non-LIVE states.
+
+View > Video preview turns off frame conversion and painting while panels keep
+updating. Preview quality is 4/8/12 fps at 0.5/0.75/1.0 scale and persists.
+One scheduler drives video (preview rate), panels (4 Hz) and status chips
+(1 Hz); it does nothing when the window is hidden or minimised. No tile opens
+a second window: the double-click handler, fullscreen context item, signal and
+frameless dialog are removed, while Focus (F11) remains.
+
+See [`GUI_FIXES.md`](GUI_FIXES.md) and [`PERFORMANCE.md`](PERFORMANCE.md).
+
+## 11. Implementation status and measured impact
 
 Phases 0-7 are implemented. The console is `--gui` only; `python main.py`
 without it, the existing `--display` window and all 99 original tests are
@@ -211,7 +247,7 @@ real camera, ESP32 or Uno.
 `docs/ui/console.png` is an offscreen capture of the real window driven by
 synthetic clips and the mock gateway: three live tiles, the advisory schematic,
 system state, controls, log and decision table, with the amber simulation
-banner. It was rendered with system Segoe UI/Consolas loaded explicitly because
+mode badge. It was rendered with system Segoe UI/Consolas loaded explicitly because
 Qt's offscreen platform on this machine does not discover the Windows font
 directory. No font, icon or stock asset is bundled by the app. The screenshot
 contains no real people, plates or site imagery.
@@ -240,8 +276,8 @@ menus).
   gateway is only driven by the decision engine. This avoids any operator path
   that could send a request against real firmware.
 - PTZ and numbered preset controls were skipped: the cameras are fixed.
-- Three-phase movements remain a disabled proposal; the banner marks them as
-  simulation and the firmware does not exist.
+- Three-phase movements remain a disabled proposal; the mode badge marks them
+  as simulation and the firmware does not exist.
 - The optional light theme uses darkened status/identity hues; the dark theme's
   measured AA pairs are in section 5. `text-muted` is intentionally decorative
   only and is never used for status or body copy.
