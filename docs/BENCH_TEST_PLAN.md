@@ -24,7 +24,7 @@ does not behave as described; do not "fix it live".
 | 6 | Handshake and heartbeat | Start `python main.py --config config.yaml --show-wire`; log shows `session established; sequence reset to 1`; wire view shows `TX {"type":"HEARTBEAT"}` followed by `RX {"type":"GATEWAY_ACK","status":"HEARTBEAT_OK"}`; host logs `heartbeat gate OPEN` | Heartbeats continue at ~1 Hz for 2 minutes; no `AI_LINK_OFFLINE` errors while cameras are live; every heartbeat has a matching reply or a logged timeout | NOT YET PERFORMED |
 | 7 | Confirm the Uno-to-ESP32 ACK path | With healthy cameras, force one advisory request (place a vehicle or play the test clip in the region; temporarily set `min_interval_s: 0`) and note the exact request/reply in the wire view | JSONL `request.accepted` is true, `uno_ack` text is recorded, and the Uno stores it as pending; the wire view shows the exact `TRAFFIC_REQUEST` and `GATEWAY_ACK`; **do not claim the lamp changed** unless it is observed at the next phase entry | NOT YET PERFORMED |
 | 7b | **Label-to-lamp check** (bench only, after 7) | Send one advisory request for the `MAIN` unit and one for `SECONDARY` under supervision, and watch which physical heads change. Confirm the Uno's `MAIN` outputs drive **both** `MAIN_A` and `MAIN_B`, and its side output drives `SEC`. | Correct heads respond for their group; no request is sent to the other group. **Abort and power down if any other head changes, if both groups change together, or if the mapping is not the expected one.** | NOT YET PERFORMED |
-| 7c | **Capture exact wire evidence** (after 7/7b) | In the GUI open **Controls → Wire traffic…**, or run with `--show-wire`; use **Copy all** before shutdown. Include the request, reply and any rejection reason in the session notes. | Exact TX and RX JSON lines are saved with the step result; no credentials appear; the transcript is not confused with lamp state | NOT YET PERFORMED |
+| 7c | **Capture exact wire evidence** (after 7/7b) | In the GUI press **Ctrl+Shift+W** (or open **Controls → Wire traffic…**), or run with `--show-wire`; use **Copy all** before shutdown. Include the request, reply and any rejection reason in the session notes. | Exact TX and RX JSON lines are saved with the step result; no credentials appear; the transcript is not confused with lamp state | NOT YET PERFORMED |
 | 8 | Unplug one camera | JSONL per-camera `state` changes; decision log reasons name the unhealthy approach; heartbeat gate closes; heartbeats stop; Uno goes autonomous after its 3 s freshness window | No recommendation is sent while unhealthy; Uno's LEDs continue cycling on their own | NOT YET PERFORMED |
 | 9 | Reconnect the camera | Camera returns `LIVE`; metrics become healthy; heartbeat gate reopens; a new request is accepted | Sequence continues from the same session (no reset without a new TCP connection) | NOT YET PERFORMED |
 | 10 | Disconnect Wi-Fi | Client logs `session lost`; reconnects with backoff 1→10 s; heartbeat gate and requests stop; Uno stays autonomous | After reconnecting, a new session starts with heartbeat and sequence reset to 1 | NOT YET PERFORMED |
@@ -33,8 +33,8 @@ does not behave as described; do not "fix it live".
 
 ## Capturing wire evidence
 
-Start the app with `--show-wire` when a terminal record is useful, or open
-**Controls → Wire traffic…** in the console. The client records complete TX and
+Start the app with `--show-wire` when a terminal record is useful, or press
+**Ctrl+Shift+W** in the console. The client records complete TX and
 RX lines from the moment it starts, including handshakes, heartbeats, requests,
 replies and malformed inbound lines. The GUI window is read-only and polls while
 visible; it never injects a request.

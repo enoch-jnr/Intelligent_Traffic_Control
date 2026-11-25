@@ -104,7 +104,8 @@ Keep the current envelope for compatibility:
 {"type":"GATEWAY_ACK","status":"CONTROLLER_ACCEPTED","sequence":104,"uno_ack":"ACK:REQUEST_SEC,18"}
 ```
 
-The host's **Controls → Wire traffic…** window (or `--show-wire`) shows this
+The host's **Controls → Wire traffic…** window (**Ctrl+Shift+W**, or
+`--show-wire`) shows this
 envelope exactly as sent and received. Use it when freezing the new ACK text for
 the three-phase firmware, and record the exchange in the bench notes.
 

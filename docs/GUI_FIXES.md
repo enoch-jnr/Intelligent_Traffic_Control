@@ -148,7 +148,8 @@ ignored.
 ## Later addition: exact gateway wire traffic
 
 A read-only diagnostic window was added after this fix pass. **Controls → Wire
-traffic…** is modeless and polls the controller's bounded transcript every
+traffic…** (**Ctrl+Shift+W**) is modeless and polls the controller's bounded
+transcript every
 400 ms while visible; it shows exact TX/RX JSON, a status count and **Copy all**.
 The data is captured in the gateway client before parsing, kept in memory (newest
 1,000 lines) and never added to `decisions.jsonl`. It does not touch the tile
