@@ -39,6 +39,15 @@ class UnitView:
 
 
 @dataclass(frozen=True)
+class WireLineView:
+    """One exact JSON line sent to or received from the gateway."""
+
+    at: str
+    direction: str
+    json: str
+
+
+@dataclass(frozen=True)
 class RecommendationView:
     """The last advisory recommendation and the controller's reply."""
 

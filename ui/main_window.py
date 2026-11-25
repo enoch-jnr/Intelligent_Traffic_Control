@@ -11,7 +11,7 @@ from collections import deque
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QSettings, QThreadPool, QTimer, QUrl
+from PySide6.QtCore import QEvent, Qt, QSettings, QThreadPool, QTimer, QUrl
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
@@ -30,6 +30,8 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLayout,
+    QLineEdit,
     QMainWindow,
     QMessageBox,
     QPlainTextEdit,
@@ -54,6 +56,7 @@ from ui.dialogs import about_text, confirm
 from ui.export_dialog import ExportLogDialog
 from ui.logs import LogPanel
 from ui.schematic import SchematicTile
+from ui.shortcuts import ShortcutRegistry
 from ui.tasks import FunctionTask
 from ui.theme import DARK, THEMES, stylesheet
 from ui.tiles import CameraTile
@@ -62,6 +65,11 @@ from ui.widgets import (
     StatusChip,
     format_uptime,
 )
+from ui.wire import WireTrafficDialog
+
+APPROACH_ORDER = ("MAIN_A", "MAIN_B", "SEC")
+DEFAULT_DOCK_HEIGHT = 312
+MINIMUM_DOCK_HEIGHT = 80
 
 
 class MainWindow(QMainWindow):
@@ -81,13 +89,31 @@ class MainWindow(QMainWindow):
         self._log_seq = 0
         self._event_seq = 0
         self._events_by_seq: dict[int, object] = {}
-        self._focused_camera: str | None = None
+        ordered = sorted(
+            controller.config.cameras,
+            key=lambda camera: (
+                APPROACH_ORDER.index(camera.approach)
+                if camera.approach in APPROACH_ORDER
+                else len(APPROACH_ORDER)
+            ),
+        )
+        self._camera_order = [camera.id for camera in ordered]
+        self._default_focus = (
+            next(
+                (camera.id for camera in ordered if camera.approach == "MAIN_A"),
+                self._camera_order[0] if self._camera_order else None,
+            )
+        )
+        self._focused_camera: str | None = self._default_focus
         self._focus_mode = False
+        self._shortcuts = ShortcutRegistry(self)
+        self._dock_height = DEFAULT_DOCK_HEIGHT
         self._playback_paused = False
         self._snapshot_warned = False
         self._shutting_down = False
         self._tasks: set[FunctionTask] = set()
         self._tiles: dict[str, CameraTile] = {}
+        self._wire_dialog: WireTrafficDialog | None = None
         self._flip_state = {
             camera.id: camera.flip for camera in controller.config.cameras
         }
@@ -109,6 +135,9 @@ class MainWindow(QMainWindow):
 
         self._build_actions()
         self._build_ui()
+        app = QApplication.instance()
+        if app is not None:
+            app.installEventFilter(self)
         self._apply_theme()
         self._restore_layout()
 
@@ -128,41 +157,79 @@ class MainWindow(QMainWindow):
         self.exit_action.triggered.connect(self.close)
 
         self.shutdown_action = QAction("Shutdown", self)
-        self.shutdown_action.setShortcut(QKeySequence("Ctrl+Q"))
         self.shutdown_action.triggered.connect(self._shutdown)
+        self._shortcuts.register(
+            self.shutdown_action,
+            "Ctrl+Q",
+            "Stop requests and heartbeats, then close",
+        )
 
         self.hold_action = QAction("Hold requests", self)
-        self.hold_action.setShortcut(QKeySequence("Ctrl+H"))
         self.hold_action.triggered.connect(self._toggle_hold)
+        self._shortcuts.register(
+            self.hold_action, "Ctrl+H", "Hold or resume advisory requests"
+        )
 
         self.reset_action = QAction("Reset analysis", self)
-        self.reset_action.setShortcut(QKeySequence("Ctrl+R"))
         self.reset_action.triggered.connect(self._reset)
+        self._shortcuts.register(
+            self.reset_action, "Ctrl+R", "Reset analysis state and gateway session"
+        )
 
         self.release_action = QAction("Release to autonomous", self)
-        self.release_action.setShortcut(QKeySequence("Ctrl+L"))
         self.release_action.triggered.connect(self._toggle_release)
+        self._shortcuts.register(
+            self.release_action,
+            "Ctrl+L",
+            "Release control to the autonomous controller",
+        )
 
         self.export_log_action = QAction("Export log…", self)
-        self.export_log_action.setShortcut(QKeySequence("Ctrl+E"))
         self.export_log_action.triggered.connect(self._export_log)
+        self._shortcuts.register(
+            self.export_log_action, "Ctrl+E", "Export the decision log"
+        )
 
         self.export_diagnostics_action = QAction("Export diagnostics…", self)
-        self.export_diagnostics_action.setShortcut(QKeySequence("Ctrl+Shift+E"))
         self.export_diagnostics_action.triggered.connect(self._export_diagnostics)
+        self._shortcuts.register(
+            self.export_diagnostics_action,
+            "Ctrl+Shift+E",
+            "Export redacted diagnostics",
+        )
 
         self.dashboard_snapshot_action = QAction("Save dashboard snapshot…", self)
-        self.dashboard_snapshot_action.setShortcut(QKeySequence("Ctrl+Shift+S"))
         self.dashboard_snapshot_action.triggered.connect(self._snapshot_dashboard)
+        self._shortcuts.register(
+            self.dashboard_snapshot_action,
+            "Ctrl+Shift+S",
+            "Save a dashboard image after the privacy warning",
+        )
 
         self.start_action = QAction("Start / Stop", self)
-        self.start_action.setShortcut(QKeySequence("F5"))
         self.start_action.triggered.connect(self._toggle_started)
+        self._shortcuts.register(
+            self.start_action, "F5", "Start or stop the analysis and advisory link"
+        )
 
         self.focus_action = QAction("Focus mode", self)
         self.focus_action.setCheckable(True)
-        self.focus_action.setShortcut(QKeySequence("F11"))
         self.focus_action.toggled.connect(self._set_focus_mode)
+        self._shortcuts.register(
+            self.focus_action, "F11", "Toggle the large focused camera"
+        )
+
+        self.focus_next_action = QAction("Focus next camera", self)
+        self.focus_next_action.triggered.connect(lambda: self._cycle_focus(1))
+        self._shortcuts.register(
+            self.focus_next_action, "F6", "Focus the next camera"
+        )
+
+        self.focus_previous_action = QAction("Focus previous camera", self)
+        self.focus_previous_action.triggered.connect(lambda: self._cycle_focus(-1))
+        self._shortcuts.register(
+            self.focus_previous_action, "Shift+F6", "Focus the previous camera"
+        )
 
         self.overlays_action = QAction("Show tile overlays", self)
         self.overlays_action.setCheckable(True)
@@ -173,13 +240,13 @@ class MainWindow(QMainWindow):
         self.logs_action.setCheckable(True)
         self.logs_action.setChecked(True)
         self.logs_action.toggled.connect(self._set_logs_visible)
+        self._shortcuts.register(
+            self.logs_action, "Ctrl+J", "Hide or restore the log panel"
+        )
 
         self.preview_action = QAction("Video preview", self)
         self.preview_action.setCheckable(True)
         self.preview_action.setChecked(True)
-        self.preview_action.setToolTip(
-            "Stop converting and painting camera frames; logs and decisions continue"
-        )
         self.preview_action.toggled.connect(self.set_video_preview)
 
         self.preview_quality_group = QActionGroup(self)
@@ -198,6 +265,9 @@ class MainWindow(QMainWindow):
         self.theme_action.setCheckable(True)
         self.theme_action.setChecked(self.theme.name == "light")
         self.theme_action.toggled.connect(self._theme_toggled)
+        self._shortcuts.register(
+            self.theme_action, "Ctrl+T", "Switch between dark and light themes"
+        )
 
         self.reduced_motion_action = QAction("Reduce motion", self)
         self.reduced_motion_action.setCheckable(True)
@@ -211,16 +281,38 @@ class MainWindow(QMainWindow):
 
         self.open_config_action = QAction("View configuration…", self)
         self.open_config_action.triggered.connect(self._open_config)
+        self._shortcuts.register(
+            self.open_config_action,
+            "Ctrl+,",
+            "Open the redacted, read-only configuration",
+        )
+
+        self.shortcuts_help_action = QAction("Keyboard shortcuts", self)
+        self.shortcuts_help_action.triggered.connect(self._show_shortcuts)
 
         self.about_action = QAction("About and limits", self)
         self.about_action.triggered.connect(self._show_about)
 
         self.camera_actions: dict[str, QAction] = {}
-        for camera in self.controller.config.cameras:
+        ordered = [
+            camera
+            for camera_id in self._camera_order
+            for camera in self.controller.config.cameras
+            if camera.id == camera_id
+        ]
+        for index, camera in enumerate(ordered, start=1):
             action = QAction(f"Focus {camera.approach} ({camera.id})", self)
             action.triggered.connect(
-                lambda _checked=False, camera_id=camera.id: self._focus_camera(camera_id)
+                lambda _checked=False, camera_id=camera.id: self._focus_camera(
+                    camera_id
+                )
             )
+            if index <= 3:
+                self._shortcuts.register(
+                    action,
+                    f"Ctrl+{index}",
+                    f"Focus {camera.approach}",
+                )
             self.camera_actions[camera.id] = action
 
     def _build_ui(self) -> None:
@@ -232,13 +324,16 @@ class MainWindow(QMainWindow):
         self._build_menus()
 
         self.work_splitter = QSplitter(Qt.Orientation.Vertical)
-        self.work_splitter.setChildrenCollapsible(False)
+        self.work_splitter.setChildrenCollapsible(True)
         self.work_splitter.addWidget(self._build_video_area())
         self.log_dock = self._build_log_dock()
         self.work_splitter.addWidget(self.log_dock)
+        self.work_splitter.setCollapsible(1, True)
         self.work_splitter.setStretchFactor(0, 3)
         self.work_splitter.setStretchFactor(1, 2)
-        self.work_splitter.setSizes([348, 312])
+        self.work_splitter.setSizes([348, DEFAULT_DOCK_HEIGHT])
+        self.work_splitter.splitterMoved.connect(self._splitter_moved)
+        self.work_splitter.handle(1).installEventFilter(self)
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.setChildrenCollapsible(False)
@@ -280,6 +375,9 @@ class MainWindow(QMainWindow):
         view_menu.addAction(self.logs_action)
 
         cameras_menu = menu.addMenu("Cameras")
+        cameras_menu.addAction(self.focus_next_action)
+        cameras_menu.addAction(self.focus_previous_action)
+        cameras_menu.addSeparator()
         for action in self.camera_actions.values():
             cameras_menu.addAction(action)
 
@@ -294,6 +392,7 @@ class MainWindow(QMainWindow):
         settings_menu.addAction(self.reduced_motion_action)
 
         help_menu = menu.addMenu("Help")
+        help_menu.addAction(self.shortcuts_help_action)
         help_menu.addAction(self.about_action)
 
         self.mode_badge = QLabel("LIVE:COMPAT-2PH")
@@ -327,9 +426,13 @@ class MainWindow(QMainWindow):
     def _build_log_dock(self) -> QWidget:
         dock = QFrame()
         dock.setObjectName("card")
-        dock.setMinimumHeight(312)
+        dock.setMinimumHeight(MINIMUM_DOCK_HEIGHT)
+        dock.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored
+        )
         dock_layout = QVBoxLayout(dock)
         dock_layout.setContentsMargins(2, 0, 2, 2)
+        dock_layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
         self.log_panel = LogPanel(self.theme)
         dock_layout.addWidget(self.log_panel)
         self.log_panel.tabBar().tabBarDoubleClicked.connect(
@@ -338,16 +441,20 @@ class MainWindow(QMainWindow):
         return dock
 
     def _build_tiles(self) -> None:
+        ordered = [
+            camera
+            for camera_id in self._camera_order
+            for camera in self.controller.config.cameras
+            if camera.id == camera_id
+        ]
         self.schematic_tile = SchematicTile(
             theme=self.theme,
-            approaches=tuple(
-                camera.approach for camera in self.controller.config.cameras
-            ),
+            approaches=tuple(camera.approach for camera in ordered),
         )
         self.schematic_tile.setAccessibleName(
             "T-junction recommendation, advisory only"
         )
-        for camera in self.controller.config.cameras:
+        for camera in ordered:
             tile = CameraTile(
                 camera.id,
                 camera.approach,
@@ -355,7 +462,7 @@ class MainWindow(QMainWindow):
                 theme=self.theme,
             )
             tile.setAccessibleName(f"{camera.approach} camera {camera.id}")
-            tile.clicked.connect(self._focus_camera)
+            tile.clicked.connect(self._tile_clicked)
             tile.snapshot_requested.connect(self._snapshot_camera)
             tile.flip_requested.connect(self._toggle_flip)
             tile.overlays_requested.connect(self._set_tile_overlays)
@@ -380,7 +487,11 @@ class MainWindow(QMainWindow):
             for index, tile in enumerate(others[:2]):
                 self.grid_layout.addWidget(tile, index, 2)
         else:
-            items: list[QWidget] = list(self._tiles.values()) + [self.schematic_tile]
+            items: list[QWidget] = [
+                self._tiles[camera_id]
+                for camera_id in self._camera_order
+                if camera_id in self._tiles
+            ] + [self.schematic_tile]
             for index, tile in enumerate(items[:4]):
                 self.grid_layout.addWidget(tile, index // 2, index % 2)
 
@@ -389,6 +500,7 @@ class MainWindow(QMainWindow):
         scroll.setWidgetResizable(True)
         scroll.setMinimumWidth(280)
         scroll.setMaximumWidth(430)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         sidebar = QWidget()
         layout = QVBoxLayout(sidebar)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -398,7 +510,10 @@ class MainWindow(QMainWindow):
         system.setObjectName("mono")
         system.setWordWrap(True)
         system.setContentsMargins(10, 8, 10, 8)
-        system.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        system.setMinimumWidth(0)
+        system.setSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Minimum
+        )
         self.system_label = system
         layout.addWidget(
             CollapsibleSection(
@@ -470,11 +585,31 @@ class MainWindow(QMainWindow):
         self.camera_items: dict[str, QTreeWidgetItem] = {}
         root = QTreeWidgetItem(["Junction (T)", ""])
         self.camera_tree.addTopLevelItem(root)
-        for camera in self.controller.config.cameras:
-            item = QTreeWidgetItem([f"{camera.approach}  {camera.id}", camera.source])
+        for camera_id in self._camera_order:
+            camera = next(
+                item for item in self.controller.config.cameras if item.id == camera_id
+            )
+            group = QTreeWidgetItem([camera.approach, ""])
+            group.setForeground(
+                0,
+                QBrush(
+                    QColor(
+                        self.theme.tokens[
+                            {
+                                "MAIN_A": "approach-main-a",
+                                "MAIN_B": "approach-main-b-label",
+                                "SEC": "approach-sec-label",
+                            }.get(camera.approach, "text-secondary")
+                        ]
+                    )
+                ),
+            )
+            root.addChild(group)
+            item = QTreeWidgetItem([camera.id, camera.source])
             item.setData(0, Qt.ItemDataRole.UserRole, camera.id)
-            root.addChild(item)
+            group.addChild(item)
             self.camera_items[camera.id] = item
+            group.setExpanded(True)
         root.setExpanded(True)
         self.camera_tree.itemClicked.connect(self._tree_item_clicked)
         layout.addWidget(
@@ -546,6 +681,12 @@ class MainWindow(QMainWindow):
             "",
             "Zip redacted config, versions, logs and decisions; no images (Ctrl+Shift+E)",
         )
+        self.wire_button = button(
+            "Wire traffic…",
+            self._show_wire_window,
+            "",
+            "Show the exact JSON sent to the gateway and every reply received",
+        )
         snapshot_button = button(
             "Dashboard image…",
             self._snapshot_dashboard,
@@ -573,6 +714,7 @@ class MainWindow(QMainWindow):
             self.release_button,
             export_button,
             diagnostics_button,
+            self.wire_button,
             snapshot_button,
             shutdown_button,
             logs_button,
@@ -602,6 +744,10 @@ class MainWindow(QMainWindow):
         self.gateway_chip = StatusChip("Gateway unknown", "unknown")
         self.gate_chip = StatusChip("Gate CLOSED", "critical")
         self.clock_chip = StatusChip("--:--:--", "info")
+        self.focus_label = QLabel("Focus: —")
+        self.focus_label.setObjectName("mono")
+        self.focus_label.setAccessibleName("Focused camera")
+        bar.addPermanentWidget(self.focus_label)
         for chip in (
             self.camera_chip,
             self.gateway_chip,
@@ -610,6 +756,20 @@ class MainWindow(QMainWindow):
         ):
             bar.addPermanentWidget(chip)
         self.setStatusBar(bar)
+
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt override
+        super().showEvent(event)
+        if hasattr(self, "work_splitter"):
+            self._apply_dock_height(self._dock_height)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt override
+        super().resizeEvent(event)
+        if (
+            hasattr(self, "log_dock")
+            and not self._dock_maximized
+            and self.log_dock.isVisible()
+        ):
+            self._apply_dock_height(self._dock_height)
 
     # -- theme and layout --------------------------------------------------
 
@@ -649,24 +809,51 @@ class MainWindow(QMainWindow):
     def _set_focus_mode(self, enabled: bool) -> None:
         self._focus_mode = bool(enabled)
         self.settings.setValue("view/focus", self._focus_mode)
-        if self._focus_mode and self._focused_camera is None:
-            cameras = list(self._tiles)
-            if cameras:
-                self._focused_camera = cameras[0]
+        if self._focus_mode and self._focused_camera not in self._tiles:
+            self._focused_camera = self._default_focus
         self._relayout_tiles()
         self._update_tile_focus()
 
-    def _focus_camera(self, camera_id: str) -> None:
-        self._focused_camera = camera_id
+    def _tile_clicked(self, camera_id: str) -> None:
+        self._focus_camera(camera_id)
         if not self._focus_mode:
             self.focus_action.setChecked(True)
-        else:
+
+    def _focus_camera(self, camera_id: str) -> None:
+        if camera_id not in self._tiles:
+            return
+        self._focused_camera = camera_id
+        self.settings.setValue("view/focused_camera", camera_id)
+        if self._focus_mode:
             self._relayout_tiles()
-            self._update_tile_focus()
+        self._update_tile_focus()
+        self._refresh_focus_label()
+
+    def _cycle_focus(self, step: int) -> None:
+        if not self._camera_order:
+            return
+        current = self._focused_camera or self._camera_order[0]
+        try:
+            index = self._camera_order.index(current)
+        except ValueError:
+            index = 0
+        self._focus_camera(self._camera_order[(index + step) % len(self._camera_order)])
 
     def _update_tile_focus(self) -> None:
         for camera_id, tile in self._tiles.items():
-            tile.set_focused(self._focus_mode and camera_id == self._focused_camera)
+            tile.set_focused(camera_id == self._focused_camera)
+
+    def _refresh_focus_label(self) -> None:
+        camera_id = self._focused_camera
+        approach = ""
+        if camera_id:
+            for camera in self.controller.config.cameras:
+                if camera.id == camera_id:
+                    approach = camera.approach
+                    break
+        self.focus_label.setText(
+            f"Focus: {approach} {camera_id}" if camera_id else "Focus: —"
+        )
 
     def _tree_item_clicked(self, item: QTreeWidgetItem, _column: int) -> None:
         camera_id = item.data(0, Qt.ItemDataRole.UserRole)
@@ -691,12 +878,51 @@ class MainWindow(QMainWindow):
             tile.set_overlay_state(polygon, count_line)
 
     def _set_logs_visible(self, visible: bool) -> None:
-        self.log_dock.setVisible(bool(visible))
-        self.settings.setValue("view/logs", bool(visible))
+        visible = bool(visible)
+        if visible:
+            self.log_dock.setVisible(True)
+            self._apply_dock_height(self._dock_height)
+        else:
+            if self.log_dock.isVisible():
+                sizes = self.work_splitter.sizes()
+                if len(sizes) > 1 and sizes[1] >= MINIMUM_DOCK_HEIGHT:
+                    self._dock_height = sizes[1]
+            self.log_dock.setVisible(False)
+        self.settings.setValue("view/logs", visible)
+        self.settings.setValue("window/dock_height", self._dock_height)
+
+    def _apply_dock_height(self, height: int) -> None:
+        total = self.work_splitter.height() - self.work_splitter.handleWidth()
+        if total <= 0:
+            total = sum(self.work_splitter.sizes()) or 720
+        if total <= MINIMUM_DOCK_HEIGHT:
+            return
+        minimum_video = min(160, total // 2)
+        height = max(MINIMUM_DOCK_HEIGHT, min(int(height), total - minimum_video))
+        self._dock_height = height
+        self.work_splitter.setSizes([max(1, total - height), height])
+
+    def _splitter_moved(self, _position: int, _index: int) -> None:
+        if not self.log_dock.isVisible():
+            return
+        sizes = self.work_splitter.sizes()
+        if len(sizes) < 2:
+            return
+        if sizes[1] < MINIMUM_DOCK_HEIGHT:
+            self.logs_action.blockSignals(True)
+            self.logs_action.setChecked(False)
+            self.logs_action.blockSignals(False)
+            self.log_dock.setVisible(False)
+            self.settings.setValue("view/logs", False)
+            return
+        self._dock_height = sizes[1]
+
+    def _toggle_logs(self) -> None:
+        self.logs_action.setChecked(not self.logs_action.isChecked())
 
     def _show_log_tab(self) -> None:
         self.logs_action.setChecked(True)
-        self.log_dock.setVisible(True)
+        self._set_logs_visible(True)
         self.log_panel.setCurrentWidget(self.log_panel.live)
 
     def _restore_layout(self) -> None:
@@ -706,11 +932,16 @@ class MainWindow(QMainWindow):
         splitter = self.settings.value("window/splitter")
         if splitter:
             self.splitter.restoreState(splitter)
-        work_splitter = self.settings.value("window/work_splitter")
-        if work_splitter:
-            self.work_splitter.restoreState(work_splitter)
-        else:
-            self.work_splitter.setSizes([348, 312])
+        self._dock_height = DEFAULT_DOCK_HEIGHT
+        try:
+            stored_height = int(self.settings.value("window/dock_height", 0))
+        except (TypeError, ValueError):
+            stored_height = 0
+        if MINIMUM_DOCK_HEIGHT <= stored_height <= 1200:
+            self._dock_height = stored_height
+        self.work_splitter.setSizes(
+            [348, min(DEFAULT_DOCK_HEIGHT, max(MINIMUM_DOCK_HEIGHT, self._dock_height))]
+        )
         overlays = self.settings.value("view/overlays", True)
         enabled = overlays in (True, "true", "True", "1", 1)
         self.overlays_action.blockSignals(True)
@@ -729,6 +960,16 @@ class MainWindow(QMainWindow):
         )
         if focused:
             self.focus_action.setChecked(True)
+        stored_focus = str(
+            self.settings.value("view/focused_camera", self._default_focus or "")
+        )
+        if stored_focus in self._tiles:
+            self._focused_camera = stored_focus
+        else:
+            # Old or corrupted camera ids are ignored, never a crash.
+            self._focused_camera = self._default_focus
+        self._update_tile_focus()
+        self._refresh_focus_label()
         logs = self.settings.value("view/logs", True) in (
             True,
             "true",
@@ -740,6 +981,7 @@ class MainWindow(QMainWindow):
         self.logs_action.setChecked(logs)
         self.logs_action.blockSignals(False)
         self.log_dock.setVisible(logs)
+        QTimer.singleShot(0, lambda: self._apply_dock_height(self._dock_height))
         reduced = self.settings.value("view/reduced_motion", False) in (
             True,
             "true",
@@ -778,12 +1020,14 @@ class MainWindow(QMainWindow):
     def _save_layout(self) -> None:
         self.settings.setValue("window/geometry", self.saveGeometry())
         self.settings.setValue("window/splitter", self.splitter.saveState())
-        if not self._dock_maximized:
-            self.settings.setValue(
-                "window/work_splitter", self.work_splitter.saveState()
-            )
+        if not self._dock_maximized and self.log_dock.isVisible():
+            sizes = self.work_splitter.sizes()
+            if len(sizes) > 1 and sizes[1] >= MINIMUM_DOCK_HEIGHT:
+                self._dock_height = sizes[1]
+        self.settings.setValue("window/dock_height", self._dock_height)
         self.settings.setValue("theme", self.theme.name)
         self.settings.setValue("view/focus", self._focus_mode)
+        self.settings.setValue("view/focused_camera", self._focused_camera)
         self.settings.setValue("view/overlays", self.overlays_action.isChecked())
         self.settings.setValue("view/logs", self.logs_action.isChecked())
         self.settings.setValue("view/preview", self._preview_enabled)
@@ -935,6 +1179,7 @@ class MainWindow(QMainWindow):
             "Resume control" if snapshot.released else "Release to autonomous"
         )
         self.session_label.setText(format_uptime(snapshot.uptime_s))
+        self._refresh_focus_label()
 
         if snapshot.fresh_cameras == snapshot.required_cameras and snapshot.required_cameras:
             tone = "ok"
@@ -981,9 +1226,7 @@ class MainWindow(QMainWindow):
         )
         self.clock_chip.set_state(datetime.now().strftime("%H:%M:%S"), "info")
 
-        fps = ", ".join(
-            f"{camera.approach} {camera.fps:.1f}" for camera in snapshot.cameras
-        )
+        fps = " / ".join(f"{camera.fps:.1f}" for camera in snapshot.cameras)
         processing = []
         for camera in snapshot.cameras:
             line = (
@@ -1006,7 +1249,7 @@ class MainWindow(QMainWindow):
                     f"Reason: {snapshot.gate_reason}",
                     f"Device: {self.controller.config.detection.device} · "
                     f"imgsz {self.controller.config.performance.imgsz}",
-                    f"Camera fps: {fps or 'no data'}",
+                    f"Source fps: {fps or 'no data'}",
                     *processing,
                     f"App CPU: {_percent(snapshot.app_cpu_percent)}   "
                     f"RSS: {'unknown' if snapshot.app_memory_mb is None else f'{snapshot.app_memory_mb:.0f} MB'}",
@@ -1043,7 +1286,7 @@ class MainWindow(QMainWindow):
             item = self.camera_items.get(camera.camera_id)
             if item is not None:
                 item.setText(
-                    0, f"{icons.get(camera.state, '•')} {camera.approach}"
+                    0, f"{icons.get(camera.state, '•')} {camera.camera_id}"
                 )
                 item.setText(
                     1, f"{camera.source} · {camera.fps:.1f} fps"
@@ -1327,8 +1570,55 @@ class MainWindow(QMainWindow):
         layout.addWidget(buttons)
         dialog.exec()
 
+    def _show_wire_window(self) -> None:
+        if self._wire_dialog is None:
+            self._wire_dialog = WireTrafficDialog(self.controller, self)
+        self._wire_dialog.show()
+        self._wire_dialog.raise_()
+        self._wire_dialog.activateWindow()
+
+    def _show_shortcuts(self) -> None:
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Keyboard shortcuts")
+        dialog.resize(560, 460)
+        layout = QVBoxLayout(dialog)
+        table = QTableWidget(0, 2)
+        table.setHorizontalHeaderLabels(["Action", "Shortcut"])
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.horizontalHeader().setStretchLastSection(True)
+        table.setObjectName("shortcutHelpTable")
+        specs = sorted(
+            self._shortcuts.specs, key=lambda spec: spec.description.lower()
+        )
+        table.setRowCount(len(specs))
+        for row, spec in enumerate(specs):
+            table.setItem(row, 0, QTableWidgetItem(spec.description))
+            table.setItem(row, 1, QTableWidgetItem(spec.keys))
+        layout.addWidget(table)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(dialog.reject)
+        buttons.accepted.connect(dialog.accept)
+        layout.addWidget(buttons)
+        dialog.exec()
+
     def _show_about(self) -> None:
         QMessageBox.about(self, "About Smarti AI Host", about_text())
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: N802 - Qt override
+        if watched is self.work_splitter.handle(1):
+            if event.type() == QEvent.Type.MouseButtonDblClick:
+                self._toggle_logs()
+                return True
+        if event.type() in (
+            QEvent.Type.KeyPress,
+            QEvent.Type.ShortcutOverride,
+        ) and self._shortcuts.blocks_key(event):
+            # A shortcut must never steal a keystroke from the log search box.
+            if event.type() == QEvent.Type.ShortcutOverride:
+                event.accept()
+            return True
+        return super().eventFilter(watched, event)
 
     # -- shutdown ----------------------------------------------------------
 
@@ -1351,6 +1641,9 @@ class MainWindow(QMainWindow):
         except Exception:  # noqa: BLE001 - closing must still proceed
             pass
         self._save_layout()
+        app = QApplication.instance()
+        if app is not None:
+            app.removeEventFilter(self)
         super().closeEvent(event)
 
 

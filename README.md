@@ -5,7 +5,7 @@
 [![Ultralytics](https://img.shields.io/badge/Ultralytics-YOLO-orange.svg)](https://www.ultralytics.com/)
 
 The AI host for **Smarti**, a single T-junction traffic controller. Three
-cameras watch `MAIN`, `SEC_A` and `SEC_B` over wired Ethernet; the host detects
+cameras watch `MAIN_A`, `MAIN_B` and `SEC` over wired Ethernet; the host detects
 and tracks vehicles, turns each approach into demand metrics, decides **which
 serving unit deserves green next and for how long**, and sends that as an
 **advisory** request to an ESP32-S3 gateway over Wi-Fi. The ESP32 and the
@@ -21,9 +21,9 @@ lamps.
 ```mermaid
 flowchart LR
     subgraph Cameras["Wired Ethernet (one switch)"]
-        C1["MAIN camera"]
-        C2["SEC_A camera"]
-        C3["SEC_B camera"]
+        C1["MAIN_A camera"]
+        C2["MAIN_B camera"]
+        C3["SEC camera"]
     end
 
     C1 --> S1["RtspSource"]
@@ -63,12 +63,13 @@ separate, pure adapter at the edge.
 
 | Mode | Units | Wire movement | Current firmware |
 | --- | --- | --- | --- |
-| `compat_two_phase` (default) | `MAIN`, `SECONDARY` (`SEC_A`+`SEC_B`) | `MAIN`, `SECONDARY` | **yes** |
-| `three_phase` (opt-in, disabled) | `MAIN`, `SEC_A`, `SEC_B` | `MAIN`, `SECONDARY_A`, `SECONDARY_B` (**proposed**) | **no** |
+| `compat_two_phase` (default) | `MAIN`, `SECONDARY` (`MAIN_A`+`MAIN_B`) | `MAIN`, `SECONDARY` | **yes** |
+| `three_phase` (opt-in, disabled) | `MAIN_A`, `MAIN_B`, `SEC` | `MAIN_A`, `MAIN_B`, `SECONDARY` (**proposed**) | **no** |
 
 The current Uno drives two approaches, so a three-approach T junction **cannot
-be fully controlled yet**. The default is a workaround: `SEC_A` and `SEC_B`
-share one `SECONDARY` request, and the Uno cannot tell them apart. Three-phase
+be fully controlled yet**. The default is a workaround: `MAIN_A` and `MAIN_B`
+share one `MAIN` request, and the Uno cannot tell them apart. `SEC` is the
+`SECONDARY` request. Three-phase
 mode refuses to start unless it is enabled explicitly **and** the movement
 names are written out; it then logs a prominent warning. The proposed firmware
 design is in [`docs/FIRMWARE_THREE_PHASE_PROPOSAL.md`](docs/FIRMWARE_THREE_PHASE_PROPOSAL.md)
@@ -119,8 +120,8 @@ The first run downloads `yolo11n.pt` through Ultralytics. All tests run on CPU.
 
    ```yaml
    cameras:
-     - id: cam_main
-       approach: MAIN
+     - id: cam_main_a
+       approach: MAIN_A
        source: file
        path: samples/main.avi
        loop: true
@@ -147,14 +148,15 @@ The first run downloads `yolo11n.pt` through Ultralytics. All tests run on CPU.
    ```
 
    Decisions are appended to `logs/decisions.jsonl`. Add `--display` to see the
-   annotated tiles, or `--dry-run` to run without any gateway at all.
+   annotated tiles, `--show-wire` to print every exact request and reply, or
+   `--dry-run` to run without any gateway at all.
 
 ### Trying the hypothetical three-phase path
 
 For host-side testing only, against firmware that does not exist:
 
 ```bash
-python -m gateway.mock_gateway --movements MAIN,SECONDARY_A,SECONDARY_B
+python -m gateway.mock_gateway --movements MAIN_A,MAIN_B,SECONDARY
 ```
 
 Use the three-unit layout and `gateway.mode: three_phase` with
@@ -198,9 +200,10 @@ counts, congestion) and exits on `q`.
 
 5. Verify the link: `logs/decisions.jsonl` should show `"health_gate_open": true`
    and accepted requests. If the gate stays closed, the log names the unhealthy
-   approach or the missing fresh camera. The full first-session checklist is
-   [`docs/BENCH_TEST_PLAN.md`](docs/BENCH_TEST_PLAN.md) — none of it has been
-   performed.
+   approach or the missing fresh camera. For the exact wire exchange, add
+   `--show-wire`, or use **Controls → Wire traffic…** in the console. The full
+   first-session checklist is [`docs/BENCH_TEST_PLAN.md`](docs/BENCH_TEST_PLAN.md)
+   — none of it has been performed.
 
 ## Configuration
 
@@ -211,11 +214,12 @@ is a startup error. Relative file paths are resolved against the config file.
 | Section | Purpose |
 | --- | --- |
 | `cameras` | `id`, `approach`, `source` (`rtsp`/`webcam`/`file`), `url`/`index`/`path`, `flip`, `target_fps`, normalized `polygon`, `count_line`, `width`/`height`, `stale_after_s`. |
-| `decision.units` | Serving layout: `{id, approaches}` entries. Compat: `MAIN` + `SECONDARY`; three-phase: `MAIN`, `SEC_A`, `SEC_B`. |
+| `decision.units` | Serving layout: `{id, approaches}` entries. Compat: `MAIN` (`MAIN_A`+`MAIN_B`) + `SECONDARY` (`SEC`); three-phase: `MAIN_A`, `MAIN_B`, `SEC`. |
 | `decision` | Weights, `base_green_s`, `k_green_s`, `score_saturation`, green min/max (inside 5–30), `min_delta_s`, `min_interval_s`, starvation and smoothing windows, `aggregation: sum|max`, `yellow_s`, `all_red_s`, `max_red_s`, `green_memory_s`, health policy. |
 | `gateway` | `mode`, host, port, connect/handshake/request timeouts, heartbeat interval, reconnect bounds, request backoff; optional `three_phase: {enabled, movements}`. |
 | `health` | Frame freshness, tick interval, tick timeout, `required_cameras` (`null` = all). |
 | `detection` | Model path, `device: auto|cuda|cpu`, confidence, optional `imgsz`. |
+| `performance` | `profile: auto|low|balanced|high`, optional target fps, model size, preview fps/scale, thread caps, `adaptive_fps`, `min_fps`. Auto resolves to low on <= 8.5 GB. |
 | `logging` | Console level, JSONL path, rotation size and backup count. |
 | `display` | Default for the annotated window. |
 
@@ -256,7 +260,7 @@ lines are discarded to the next newline.
 | Host → gateway | `{"type":"STATUS_REQUEST"}` | `{"type":"UNO_STATUS","detail":"STATUS:..."}` |
 | Host → gateway | `{"type":"TRAFFIC_REQUEST","movement":"SECONDARY","green_time":15,"priority":"NORMAL","sequence":104}` | `{"type":"GATEWAY_ACK","status":"CONTROLLER_ACCEPTED","sequence":104,"uno_ack":"ACK:REQUEST_SIDE,15"}` |
 
-`movement` is `MAIN`/`SECONDARY` in compat mode. `SECONDARY_A`/`SECONDARY_B` are
+`movement` is `MAIN`/`SECONDARY` in compat mode. `MAIN_A`/`MAIN_B`/`SECONDARY` are
 proposals that only a hypothetical gateway (or the mock started with
 `--movements`) accepts. Rejections are `{"type":"ERROR","reason":"..."}` with
 `AI_LINK_OFFLINE`, `INVALID_FIELDS`, `OUT_OF_POLICY`, `STALE_SEQUENCE`,
@@ -265,6 +269,29 @@ heartbeat and with the sequence reset; the client handshakes with a heartbeat,
 then starts at 1. Heartbeats are sent every second only while the decision loop
 has ticked within 2 s and the required cameras are fresh; a traffic request
 does not refresh freshness.
+
+## Seeing exact gateway traffic
+
+`--show-wire` prints every newline-delimited JSON line the client sends and
+receives, including the handshake and heartbeats:
+
+```bash
+python main.py --config config.yaml --mock-gateway --show-wire
+```
+
+```text
+TX {"type":"HEARTBEAT"}
+RX {"type":"GATEWAY_ACK","status":"HEARTBEAT_OK"}
+TX {"type":"TRAFFIC_REQUEST","movement":"MAIN","green_time":15,"priority":"NORMAL","sequence":1}
+RX {"type":"GATEWAY_ACK","status":"CONTROLLER_ACCEPTED","sequence":1,"uno_ack":"ACK:REQUEST_MAIN,15"}
+```
+
+The client records the newest 1,000 complete lines in memory whenever it runs;
+`--show-wire` prints new lines as they arrive. In the operator console,
+**Controls → Wire traffic…** opens a live, read-only window over the same
+buffer, with a **Copy all** button. The transcript is memory-only and does not
+add anything to the decision log. It records RX before parsing, so a malformed
+or rejected reply is visible exactly as it arrived.
 
 ## Decision log
 
@@ -294,7 +321,7 @@ without `--gui` nothing changes. PySide6 is the only added dependency.
 
 ```bash
 python main.py --config config.yaml --gui                 # real gateway
-python main.py --config config.yaml --gui --mock-gateway  # mock, amber banner
+python main.py --config config.yaml --gui --mock-gateway  # mock gateway
 python main.py --config config.yaml --gui --dry-run       # no gateway at all
 ```
 
@@ -306,13 +333,15 @@ python -m gateway.mock_gateway
 
 Press **START** in the bottom bar (or F5). The console shows the three live
 annotated tiles, the advisory T-junction schematic, system state, live events,
-the log and the decision table. A persistent amber banner marks simulation
-(mock gateway, dry run or the three-phase proposal).
+the log and the decision table. A single always-visible menu-bar badge names
+the mode: `SIMULATION:DRY-RUN`, `SIMULATION:MOCK-GATEWAY`,
+`SIMULATION:THREE-PHASE`, `SIMULATION:FILE-SOURCES` or `LIVE:COMPAT-2PH`.
 
 | Control | Behaviour |
 | --- | --- |
 | Start / Stop (F5) | Start or stop pipelines and the decision loop. Stop confirms. |
 | Hold / Resume requests (Ctrl+H) | Keep analysing and heartbeating but send no `TRAFFIC_REQUEST`s; decisions are logged with `reason: operator_hold`. |
+| Wire traffic… | Open a live, read-only window with the exact TX/RX JSON lines, timestamps and **Copy all**. The bounded 1,000-line history is memory-only; it never sends a request. |
 | Reset analysis (Ctrl+R) | Confirm; clears smoothing, counters and tracks, and restarts the gateway session (sequence back to 1). |
 | Release to autonomous (Ctrl+L) | Confirm; closes the heartbeat gate so the controller runs its own cycle. Resume control restores normal gating. |
 | Save / Export log (Ctrl+E) | Save-as for JSONL, flattened CSV or the filtered log text; range last 5 min, last hour, all decisions or selected rows. Runs in a worker with progress and a Show-in-folder result. |
@@ -323,13 +352,17 @@ the log and the decision table. A persistent amber banner marks simulation
 
 The console is advisory: it shows the last recommendation, the controller's
 reply and derived expected red. It never draws a lamp as physical state. Tile
-context menus add polygon/line toggles, flip, snapshot and fullscreen. Focus
-mode (F11) shows one large camera and two small ones. Light theme and reduced
-motion are in Settings and persist with the window layout.
+context menus add polygon/line toggles, flip and snapshot. Focus mode (F11)
+shows one large camera and two small ones; no tile opens a second window.
+View > Video preview can be turned off (logs and decisions keep updating),
+and Preview quality selects 4/8/12 fps. Light theme and reduced motion are in
+Settings and persist with the window layout.
 
-A representative screenshot (synthetic video, dry run, offscreen render) is
-[`docs/ui/console.png`](docs/ui/console.png). No real camera or controller was
-used for it.
+Representative screenshots (synthetic video, mock gateway, offscreen renders)
+are in [`docs/ui/after/`](docs/ui/after/). No real camera or controller was used
+for them. The measured fix pass and benchmark method are documented in
+[`docs/GUI_FIXES.md`](docs/GUI_FIXES.md) and
+[`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
 
 ## Tests
 
@@ -343,8 +376,9 @@ every gateway error reply, camera manager lifecycle and stale detection,
 per-camera pipeline isolation, decision rules (scoring, smoothing, starvation,
 hysteresis, clamping, degraded cameras, expected red, `max_red_s`), generic
 two- and three-unit layouts, aggregation, unit→movement adapter output and mode
-refusals, config validation, log rotation, and end-to-end runs of three looping
-videos through decisions to the mock gateway in **both** modes.
+refusals, config validation, log rotation, exact TX/RX transcript capture and
+bounds, the GUI wire window, and end-to-end runs of three looping videos through
+decisions to the mock gateway in **both** modes.
 
 ## Project structure
 
@@ -365,7 +399,8 @@ Intelligent_Traffic_Control/
 │   ├── adapter.py          # unit -> wire movement, modes
 │   ├── client.py           # threaded reconnecting client
 │   ├── mock_gateway.py     # hardware-free gateway
-│   └── protocol.py         # framing + validation
+│   ├── protocol.py         # framing + validation
+│   └── transcript.py       # bounded exact TX/RX history
 ├── pipeline/               # per-camera perception worker
 ├── tests/
 ├── docs/                   # decision, networking, audit, proposals, bench plan
@@ -377,11 +412,11 @@ Intelligent_Traffic_Control/
 ## Limitations and open items
 
 - **The T junction cannot be fully controlled yet.** Current firmware accepts
-  only `MAIN`/`SECONDARY`, so the default compat mode merges `SEC_A` and
-  `SEC_B`; the Uno cannot tell them apart. Three-phase control needs the
+  only `MAIN`/`SECONDARY`, so the default compat mode merges `MAIN_A` and
+  `MAIN_B` into `MAIN`, and sends `SEC` as `SECONDARY`. Three-phase control needs the
   firmware work in the proposal document.
-- **Three-phase movement names are unconfirmed proposals.** `SECONDARY_A` and
-  `SECONDARY_B` exist only in config, the adapter and the hypothetical mock.
+- **Three-phase movement names are unconfirmed proposals.** `MAIN_A`, `MAIN_B`
+  and `SECONDARY` exist only in config, the adapter and the hypothetical mock.
 - **Yellow, all-red and `max_red_s` are placeholders.** 3 s / 1 s / 90 s match
   the README, not verified firmware timings.
 - **One approach green at a time is an assumption.** Simultaneous movements are

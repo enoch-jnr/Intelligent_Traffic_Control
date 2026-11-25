@@ -220,6 +220,7 @@ def export_log_file(
 
     base_fields = [
         "timestamp",
+        "approach_layout",
         "mode",
         "gate_open",
         "unit",
@@ -292,6 +293,7 @@ def _flatten(entry: Mapping[str, Any]) -> dict[str, Any]:
     request = entry.get("request") or {}
     row: dict[str, Any] = {
         "timestamp": entry.get("ts", ""),
+        "approach_layout": entry.get("approach_layout", "v1"),
         "mode": entry.get("mode", ""),
         "gate_open": entry.get("health_gate_open", ""),
         "unit": recommendation.get("unit_id", ""),
@@ -350,6 +352,7 @@ def export_entries(
     rows = [_flatten(entry) for entry in entries]
     base_fields = [
         "timestamp",
+        "approach_layout",
         "mode",
         "gate_open",
         "unit",

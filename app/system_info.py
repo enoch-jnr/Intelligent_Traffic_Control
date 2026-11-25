@@ -17,6 +17,8 @@ from typing import Optional
 _lock = threading.Lock()
 _previous: Optional[tuple[int, int, int]] = None
 _process_previous: Optional[tuple[int, float]] = None
+_psutil_process = None
+_psutil_previous: Optional[tuple[float, float]] = None
 
 
 def _filetime_value(low: int, high: int) -> int:
@@ -240,8 +242,38 @@ def _linux_process() -> tuple[Optional[float], Optional[float]]:
     return cpu, rss
 
 
+def _psutil_process_usage() -> tuple[Optional[float], Optional[float]]:
+    """Optional path used when psutil is available (it is declared for tools)."""
+    global _psutil_process, _psutil_previous
+    try:
+        import psutil
+    except ImportError:
+        return None, None
+    try:
+        if _psutil_process is None:
+            _psutil_process = psutil.Process()
+        times = _psutil_process.cpu_times()
+        total = float(times.user + times.system)
+        now = time.monotonic()
+        cpu: Optional[float] = None
+        if _psutil_previous is not None:
+            previous_total, previous_now = _psutil_previous
+            wall = now - previous_now
+            if wall > 0:
+                cores = max(1, os.cpu_count() or 1)
+                cpu = round(100.0 * (total - previous_total) / wall / cores, 1)
+        _psutil_previous = (total, now)
+        rss = round(_psutil_process.memory_info().rss / (1024 * 1024), 1)
+        return cpu, rss
+    except Exception:  # noqa: BLE001 - metrics must never break a snapshot
+        return None, None
+
+
 def process_usage() -> tuple[Optional[float], Optional[float]]:
     """Return ``(app_cpu_percent_of_machine, rss_mb)`` for this process."""
+    cpu, rss = _psutil_process_usage()
+    if cpu is not None and rss is not None:
+        return cpu, rss
     try:
         if sys.platform.startswith("win"):
             return _windows_process()

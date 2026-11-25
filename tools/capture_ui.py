@@ -65,7 +65,7 @@ def capture(
             step_y=5,
             moving=False,
         )
-        for name, shift in (("MAIN", 2), ("SEC_A", 5), ("SEC_B", 3))
+        for name, shift in (("MAIN_A", 2), ("MAIN_B", 5), ("SEC", 3))
     }
 
     def config(port: int):
@@ -73,7 +73,7 @@ def capture(
             {
                 "cameras": [
                     {
-                        "id": f"cam_{approach.lower()}",
+                        "id": {"MAIN_A": "cam_main_a", "MAIN_B": "cam_main_b", "SEC": "cam_sec"}[approach],
                         "approach": approach,
                         "source": "file",
                         "path": str(clips[approach]),
@@ -81,12 +81,12 @@ def capture(
                         "realtime": True,
                         "target_fps": 15,
                     }
-                    for approach in ("MAIN", "SEC_A", "SEC_B")
+                    for approach in ("MAIN_A", "MAIN_B", "SEC")
                 ],
                 "decision": {
                     "units": [
-                        {"id": "MAIN", "approaches": ["MAIN"]},
-                        {"id": "SECONDARY", "approaches": ["SEC_A", "SEC_B"]},
+                        {"id": "MAIN", "approaches": ["MAIN_A", "MAIN_B"]},
+                        {"id": "SECONDARY", "approaches": ["SEC"]},
                     ],
                     "smoothing_window_s": 0,
                     "min_interval_s": 0,
@@ -119,7 +119,7 @@ def capture(
             mock_gateway=True,
             annotate_frames=True,
             detector_factory=lambda camera: FixedCountDetector(
-                {"MAIN": 2, "SEC_A": 5, "SEC_B": 3}[camera.approach]
+                {"MAIN_A": 2, "MAIN_B": 5, "SEC": 3}[camera.approach]
             ),
         )
         settings = QSettings(str(tmp / "ui.ini"), QSettings.Format.IniFormat)

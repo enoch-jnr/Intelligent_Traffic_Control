@@ -32,28 +32,28 @@ def _config():
         {
             "cameras": [
                 {
-                    "id": "cam_main",
-                    "approach": "MAIN",
+                    "id": "cam_main_a",
+                    "approach": "MAIN_A",
                     "source": "file",
                     "path": "missing.avi",
                 },
                 {
-                    "id": "cam_sec_a",
-                    "approach": "SEC_A",
+                    "id": "cam_main_b",
+                    "approach": "MAIN_B",
                     "source": "file",
                     "path": "missing_a.avi",
                 },
                 {
-                    "id": "cam_sec_b",
-                    "approach": "SEC_B",
+                    "id": "cam_sec",
+                    "approach": "SEC",
                     "source": "file",
                     "path": "missing_b.avi",
                 },
             ],
             "decision": {
                 "units": [
-                    {"id": "MAIN", "approaches": ["MAIN"]},
-                    {"id": "SECONDARY", "approaches": ["SEC_A", "SEC_B"]},
+                    {"id": "MAIN", "approaches": ["MAIN_A", "MAIN_B"]},
+                    {"id": "SECONDARY", "approaches": ["SEC"]},
                 ]
             },
             "logging": {"decision_log": "logs/decisions.jsonl"},
@@ -76,7 +76,7 @@ def test_shell_builds_with_menus_tiles_and_chips(qt_app, tmp_path):
         titles = [action.text() for action in window.menuBar().actions()]
         assert titles == ["File", "View", "Cameras", "Log", "Settings", "Help"]
         assert window.windowTitle() == "Smarti AI Host — Traffic Control Console"
-        assert set(window._tiles) == {"cam_main", "cam_sec_a", "cam_sec_b"}
+        assert set(window._tiles) == {"cam_main_a", "cam_main_b", "cam_sec"}
         assert window.camera_chip.text.text() == "0/3 cameras"
         assert window.mode_badge.text() == "SIMULATION:DRY-RUN"
         assert window.start_button.text() == "START"
@@ -134,7 +134,7 @@ def test_schematic_is_labelled_advisory_and_shows_units(qt_app, tmp_path):
     controller, window = _window(qt_app, tmp_path)
     try:
         tile = window.schematic_tile
-        assert set(tile.cards) == {"MAIN", "SEC_A", "SEC_B"}
+        assert set(tile.cards) == {"MAIN_A", "MAIN_B", "SEC"}
         assert "ADVISORY" in tile.advisory.text()
 
         snapshot = controller.snapshot()

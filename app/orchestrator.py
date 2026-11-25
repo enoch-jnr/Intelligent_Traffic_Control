@@ -29,10 +29,11 @@ from app.config import AppConfig, CameraConfig, build_source
 from app.decision_log import DecisionLog
 from camera.manager import CameraManager
 from decision.engine import Decision, DecisionEngine
-from decision.models import ApproachMetrics, Recommendation
+from decision.models import APPROACH_LAYOUT, ApproachMetrics, Recommendation
 from detection.vehicle_detector import VehicleDetector, configure_runtime_threads
 from gateway.adapter import ProtocolAdapter
 from gateway.client import GatewayClient, RequestResult
+from gateway.transcript import WireEntry
 from pipeline.camera_pipeline import CameraPipeline
 
 _log = logging.getLogger("app.orchestrator")
@@ -52,6 +53,7 @@ class Orchestrator:
         detector_factory: Optional[DetectorFactory] = None,
         gateway: Optional[GatewayClient] = None,
         on_tick: Optional[Callable[[dict], None]] = None,
+        wire_listener: Optional[Callable[[WireEntry], None]] = None,
         annotate_frames: bool = False,
         draw_stats: bool = True,
     ) -> None:
@@ -61,6 +63,7 @@ class Orchestrator:
         # The GUI needs annotated copies but must not open the OpenCV window.
         self.annotate_frames = annotate_frames
         self.on_tick = on_tick
+        self._wire_listener = wire_listener
 
         self.sources = {
             camera.id: build_source(
@@ -112,6 +115,7 @@ class Orchestrator:
                 self.health_gate_open,
                 name="traffic",
                 movements=self.adapter.wire_movements,
+                wire_listener=self._wire_listener,
             )
 
         self.decision_log: Optional[DecisionLog] = None
@@ -467,6 +471,7 @@ class Orchestrator:
         return {
             "ts": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
             "monotonic_s": round(now, 3),
+            "approach_layout": APPROACH_LAYOUT,
             "mode": self.config.gateway_mode,
             "health_gate_open": gate_open,
             "cameras": {

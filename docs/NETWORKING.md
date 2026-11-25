@@ -9,9 +9,9 @@ versa). All commands are examples; substitute your interface names.
 
 ```text
                  wired Ethernet (cameras)                 Wi-Fi (gateway)
-  CAM_MAIN  .11 ─┐                                       ┌─ ESP32-S3 SoftAP
-  CAM_SEC_A .12 ─┼── switch ── laptop eth0 192.168.50.2 ─┤  192.168.4.1:3333
-  CAM_SEC_B .13 ─┘                                       └─ (no internet)
+  CAM_MAIN_A .12 ─┐                                      ┌─ ESP32-S3 SoftAP
+  CAM_MAIN_B .13 ─┼── switch ── laptop eth0 192.168.50.2 ─┤  192.168.4.1:3333
+  CAM_SEC    .11 ─┘                                      └─ (no internet)
 ```
 
 Two independent L2 networks. The laptop is the only device on both.
@@ -84,6 +84,52 @@ nmcli connection modify "Smarti-Gateway" ipv4.never-default yes
 3. `ping 192.168.4.1` — the ESP32 answers on its AP.
 4. Only then start the app. The JSONL decision log records per-camera
    `frame_age_s`, so a silent camera is visible without a debugger.
+5. To inspect the link itself, start with `--show-wire` or open
+   **Controls → Wire traffic…** in the console. It shows the exact TX/RX JSON
+   lines, including heartbeats and the gateway's rejection reason, without
+   changing what is sent.
+
+## Inspecting the gateway link
+
+The wire view is a diagnostic copy, not a second client. It records each
+complete line after a successful send and each line as received, before JSON
+parsing. It includes the handshake, every heartbeat, traffic requests, replies
+and malformed inbound lines. It is bounded to the newest 1,000 lines and is
+never written to disk or to `decisions.jsonl`.
+
+Use the CLI when you want a terminal record:
+
+```bash
+python main.py --config config.yaml --show-wire
+```
+
+Output is one line per message, with the JSON unchanged:
+
+```text
+TX {"type":"HEARTBEAT"}
+RX {"type":"GATEWAY_ACK","status":"HEARTBEAT_OK"}
+```
+
+In the console, open **Controls → Wire traffic…** before or during a run. The
+window polls every 400 ms while visible and has **Copy all**. Copy the transcript
+before shutting down; the oldest lines are discarded once the 1,000-line bound
+is reached.
+
+Useful interpretations:
+
+- **No `TX` heartbeat:** the client is not started, the health gate is closed
+  because a camera is stale/unhealthy, or an operator has released control.
+- **Request `TX` but no matching `RX`:** the request timed out or the link
+  dropped. Look for reconnect/session messages in the console log; a new TCP
+  session resets the sequence to 1.
+- **`RX` with `ERROR`:** the gateway rejected the last message. The `reason`
+  (`AI_LINK_OFFLINE`, `INVALID_FIELDS`, `OUT_OF_POLICY`, `STALE_SEQUENCE`,
+  `UNO_ACK_TIMEOUT`, `UNO_NACK`) is the firmware's own reply.
+- **A reply arrives but the lamp did not change:** that is expected. A gateway
+  or controller ACK means the request was accepted, not that a phase changed.
+
+The transcript contains gateway JSON only, not camera URLs or credentials, but
+it may still contain operational detail. Review it before sharing.
 
 ## Bandwidth and camera settings
 

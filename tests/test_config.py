@@ -26,10 +26,10 @@ ENV = {"CAM_USER": "camera", "CAM_PASS": "secret"}
 def test_example_config_loads_with_env_credentials():
     config = load_config("config.example.yaml", env=ENV)
 
-    assert config.camera_ids == ("cam_main", "cam_sec_a", "cam_sec_b")
+    assert config.camera_ids == ("cam_main_a", "cam_main_b", "cam_sec")
     assert config.units == (
-        ServingUnit("MAIN", ("MAIN",)),
-        ServingUnit("SECONDARY", ("SEC_A", "SEC_B")),
+        ServingUnit("MAIN", ("MAIN_A", "MAIN_B")),
+        ServingUnit("SECONDARY", ("SEC",)),
     )
     assert config.required_camera_count == 3
     assert config.gateway.host == "192.168.4.1"
@@ -37,9 +37,50 @@ def test_example_config_loads_with_env_credentials():
     assert config.decision.aggregation == "sum"
     assert GREEN_TIME_MIN <= config.decision.min_green_s
     assert config.decision.max_green_s <= GREEN_TIME_MAX
-    assert config.cameras[0].url.startswith("rtsp://camera:secret@192.168.50.11")
+    assert config.cameras[0].url.startswith("rtsp://camera:secret@192.168.50.12")
+    assert config.cameras[2].url.startswith("rtsp://camera:secret@192.168.50.11")
     # The old ambiguous mode switch is gone; the layout lives in units.
     assert not hasattr(config, "phase_mode")
+
+
+def test_retired_approaches_and_camera_ids_are_refused_with_migration_help():
+    for camera in (
+        _camera(id="legacy", approach="MAIN"),
+        _camera(id="legacy", approach="SEC_A"),
+        _camera(id="cam_main", approach="MAIN_A"),
+        _camera(id="cam_sec_a", approach="MAIN_A"),
+    ):
+        with pytest.raises(ConfigError) as excinfo:
+            build_config(
+                {
+                    "cameras": [camera],
+                    "decision": {"units": _units(("MAIN", ("MAIN_A",)))},
+                }
+            )
+        message = str(excinfo.value)
+        assert "retired approach layout" in message
+        assert "docs/MIGRATION_RENAME.md" in message
+        assert "old MAIN is now SEC" in message
+
+
+def test_retired_three_phase_names_are_refused():
+    raw = _three_phase_raw()
+    raw["gateway"]["three_phase"]["movements"] = {
+        "MAIN": "MAIN",
+        "SEC_A": "SECONDARY_A",
+        "SEC_B": "SECONDARY_B",
+    }
+    with pytest.raises(ConfigError, match="retired names"):
+        build_config(raw)
+
+
+def test_compat_units_cannot_cross_wire_groups():
+    raw = _raw(
+        cameras=[_camera(id="cam_sec", approach="SEC")],
+        decision={"units": _units(("MAIN", ("SEC",)))},
+    )
+    with pytest.raises(ConfigError, match="compat unit 'MAIN' cannot contain"):
+        build_config(raw)
 
 
 def test_missing_environment_variable_is_reported():
@@ -57,8 +98,8 @@ def _write(tmp_path: Path, data: dict) -> Path:
 
 def _camera(**overrides) -> dict:
     camera = {
-        "id": "cam_main",
-        "approach": "MAIN",
+        "id": "cam_main_a",
+        "approach": "MAIN_A",
         "source": "file",
         "path": "clip.avi",
     }
@@ -76,7 +117,7 @@ def _units(*entries: tuple[str, tuple[str, ...]]) -> list[dict]:
 def _raw(**overrides) -> dict:
     raw = {
         "cameras": [_camera()],
-        "decision": {"units": _units(("MAIN", ("MAIN",)))},
+        "decision": {"units": _units(("MAIN", ("MAIN_A",)))},
     }
     raw.update(overrides)
     return raw
@@ -91,14 +132,14 @@ def test_relative_file_paths_resolve_against_the_config_file(tmp_path):
 def test_two_cameras_cannot_share_an_approach():
     raw = {
         "cameras": [_camera(), _camera(id="cam_other")],
-        "decision": {"units": _units(("MAIN", ("MAIN",)))},
+        "decision": {"units": _units(("MAIN", ("MAIN_A",)))},
     }
     with pytest.raises(ConfigError, match="one camera per approach"):
         build_config(raw)
 
 
 def test_compat_mode_requires_the_firmware_unit_names():
-    raw = _raw(decision={"units": _units(("NORTH", ("MAIN",)))})
+    raw = _raw(decision={"units": _units(("NORTH", ("MAIN_A",)))})
     with pytest.raises(ConfigError, match="compat_two_phase units"):
         build_config(raw)
 
@@ -107,9 +148,9 @@ def test_camera_approach_must_be_assigned_to_a_unit():
     raw = _raw(
         cameras=[
             _camera(),
-            _camera(id="cam_sec", approach="SEC_A"),
+            _camera(id="cam_sec", approach="SEC"),
         ],
-        decision={"units": _units(("MAIN", ("MAIN",)))},
+        decision={"units": _units(("MAIN", ("MAIN_A",)))},
     )
     with pytest.raises(ConfigError, match="missing from decision.units"):
         build_config(raw)
@@ -117,7 +158,7 @@ def test_camera_approach_must_be_assigned_to_a_unit():
 
 def test_unit_may_not_reference_an_approach_without_a_camera():
     raw = _raw(
-        decision={"units": _units(("MAIN", ("MAIN", "SEC_A")))},
+        decision={"units": _units(("MAIN", ("MAIN_A", "SEC")))},
     )
     with pytest.raises(ConfigError, match="no camera"):
         build_config(raw)
@@ -127,8 +168,8 @@ def test_an_approach_may_not_be_in_two_units():
     raw = _raw(
         decision={
             "units": _units(
-                ("MAIN", ("MAIN",)),
-                ("SECONDARY", ("MAIN",)),
+                ("MAIN", ("MAIN_A",)),
+                ("SECONDARY", ("MAIN_A",)),
             )
         }
     )
@@ -138,11 +179,11 @@ def test_an_approach_may_not_be_in_two_units():
 
 def test_duplicate_camera_ids_are_rejected():
     raw = _raw(
-        cameras=[_camera(), _camera(approach="SEC_A")],
+        cameras=[_camera(), _camera(approach="MAIN_B")],
         decision={
             "units": _units(
-                ("MAIN", ("MAIN",)),
-                ("SECONDARY", ("SEC_A",)),
+                ("MAIN", ("MAIN_A",)),
+                ("SECONDARY", ("MAIN_B",)),
             )
         },
     )
@@ -162,7 +203,7 @@ def test_legacy_layout_keys_are_rejected_with_a_migration_hint():
             {
                 "cameras": [_camera()],
                 "approaches": {"MAIN": "MAIN"},
-                "decision": {"units": _units(("MAIN", ("MAIN",)))},
+                "decision": {"units": _units(("MAIN", ("MAIN_A",)))},
             }
         )
     with pytest.raises(ConfigError, match="gateway.mode"):
@@ -170,18 +211,18 @@ def test_legacy_layout_keys_are_rejected_with_a_migration_hint():
             {
                 "cameras": [_camera()],
                 "phase_mode": "two_phase_compat",
-                "decision": {"units": _units(("MAIN", ("MAIN",)))},
+                "decision": {"units": _units(("MAIN", ("MAIN_A",)))},
             }
         )
 
 
 def test_green_range_must_stay_inside_the_protocol():
-    raw = _raw(decision={"units": _units(("MAIN", ("MAIN",))), "max_green_s": 40})
+    raw = _raw(decision={"units": _units(("MAIN", ("MAIN_A",))), "max_green_s": 40})
     with pytest.raises(ConfigError, match="green time"):
         build_config(raw)
 
     narrowed = build_config(
-        _raw(decision={"units": _units(("MAIN", ("MAIN",))), "min_green_s": 8, "max_green_s": 25})
+        _raw(decision={"units": _units(("MAIN", ("MAIN_A",))), "min_green_s": 8, "max_green_s": 25})
     )
     assert (narrowed.decision.min_green_s, narrowed.decision.max_green_s) == (8, 25)
 
@@ -209,22 +250,22 @@ def test_decision_units_must_be_a_non_empty_list():
 
 
 THREE_PHASE_UNITS = _units(
-    ("MAIN", ("MAIN",)),
-    ("SEC_A", ("SEC_A",)),
-    ("SEC_B", ("SEC_B",)),
+    ("MAIN_A", ("MAIN_A",)),
+    ("MAIN_B", ("MAIN_B",)),
+    ("SEC", ("SEC",)),
 )
 THREE_PHASE_MOVEMENTS = {
-    "MAIN": "MAIN",
-    "SEC_A": "SECONDARY_A",
-    "SEC_B": "SECONDARY_B",
+    "MAIN_A": "MAIN_A",
+    "MAIN_B": "MAIN_B",
+    "SEC": "SECONDARY",
 }
 
 
 def _three_phase_cameras() -> list[dict]:
     return [
-        _camera(),
-        _camera(id="cam_sec_a", approach="SEC_A"),
-        _camera(id="cam_sec_b", approach="SEC_B"),
+        _camera(id="cam_main_a", approach="MAIN_A"),
+        _camera(id="cam_main_b", approach="MAIN_B"),
+        _camera(id="cam_sec", approach="SEC"),
     ]
 
 
@@ -247,7 +288,7 @@ def test_three_phase_layout_loads_when_explicitly_enabled():
     assert config.gateway_mode == "three_phase"
     assert config.three_phase_enabled is True
     assert config.gateway_movements == THREE_PHASE_MOVEMENTS
-    assert [unit.id for unit in config.units] == ["MAIN", "SEC_A", "SEC_B"]
+    assert [unit.id for unit in config.units] == ["MAIN_A", "MAIN_B", "SEC"]
 
 
 def test_three_phase_is_refused_while_disabled():
@@ -260,7 +301,7 @@ def test_three_phase_is_refused_while_disabled():
 
 def test_three_phase_needs_explicit_movement_names():
     raw = _three_phase_raw()
-    del raw["gateway"]["three_phase"]["movements"]["SEC_B"]
+    del raw["gateway"]["three_phase"]["movements"]["SEC"]
 
     with pytest.raises(ConfigError, match="explicitly name every unit"):
         build_config(raw)
@@ -293,9 +334,9 @@ def test_unknown_gateway_mode_is_rejected():
 def test_three_phase_movements_must_be_unique_and_complete():
     duplicate = _three_phase_raw()
     duplicate["gateway"]["three_phase"]["movements"] = {
-        "MAIN": "MAIN",
-        "SEC_A": "SIDE",
-        "SEC_B": "SIDE",
+        "MAIN_A": "MAIN_A",
+        "MAIN_B": "SIDE",
+        "SEC": "SIDE",
     }
     with pytest.raises(ConfigError, match="unique"):
         build_config(duplicate)
@@ -321,7 +362,7 @@ def _two_unit_raw(**decision) -> dict:
         ],
         "decision": {
             "units": _units(
-                ("MAIN", ("MAIN",)),
+                ("MAIN", ("MAIN_A",)),
                 ("SECONDARY", ("SEC",)),
             )
         },
@@ -375,7 +416,7 @@ def test_max_red_and_clearances_are_validated():
 
 
 def test_source_factory_builds_each_type():
-    common = {"id": "cam", "approach": "MAIN"}
+    common = {"id": "cam", "approach": "MAIN_A"}
     webcam = build_source(CameraConfig(source="webcam", index=1, **common))
     rtsp = build_source(
         CameraConfig(source="rtsp", url="rtsp://user:pass@10.0.0.2/stream", **common)

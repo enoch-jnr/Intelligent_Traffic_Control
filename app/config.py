@@ -32,6 +32,22 @@ from pipeline.camera_pipeline import DEFAULT_POLYGON, PipelineConfig
 
 _ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
+#: The only approaches accepted after the SEC/MAIN_A/MAIN_B role swap.
+APPROACHES_V2: tuple[str, ...] = ("MAIN_A", "MAIN_B", "SEC")
+
+#: Retired labels. A config that contains one is refused, never translated.
+_RETIRED_APPROACHES = {"MAIN", "SEC_A", "SEC_B"}
+_RETIRED_CAMERA_IDS = {"cam_main", "cam_sec_a", "cam_sec_b"}
+_RETIRED_UNIT_IDS = {"SEC_A", "SEC_B"}
+_RETIRED_MOVEMENTS = {"SECONDARY_A", "SECONDARY_B"}
+_RETIRED_UI_TOKENS = ("approach-main", "approach-sec-a", "approach-sec-b")
+
+_MIGRATION = (
+    "The roles changed: old MAIN is now SEC, and old SEC_A/SEC_B are now "
+    "MAIN_A/MAIN_B. Compat units are MAIN=[MAIN_A, MAIN_B] and "
+    "SECONDARY=[SEC]. See docs/MIGRATION_RENAME.md."
+)
+
 
 class ConfigError(ValueError):
     """Raised for malformed or inconsistent configuration."""
@@ -225,8 +241,16 @@ def build_config(raw: Mapping[str, Any], *, base_dir: Optional[Path] = None) -> 
             "(compat_two_phase | three_phase)"
         )
 
+    _reject_retired_cameras(cameras)
+
     approach_owners: dict[str, str] = {}
     for camera in cameras:
+        if camera.approach not in APPROACHES_V2:
+            raise ConfigError(
+                f"camera {camera.id!r} uses unsupported approach "
+                f"{camera.approach!r}; expected one of {APPROACHES_V2}. "
+                + _MIGRATION
+            )
         if camera.approach in approach_owners:
             raise ConfigError(
                 f"approach {camera.approach!r} has two cameras "
@@ -239,9 +263,11 @@ def build_config(raw: Mapping[str, Any], *, base_dir: Optional[Path] = None) -> 
     if not isinstance(decision_raw, dict):
         raise ConfigError("'decision' must be a mapping")
     units = _units_from(decision_raw.get("units"))
+    _reject_retired_units(units)
     _validate_units(units, set(approach_owners))
     decision = _decision_settings(decision_raw, units)
 
+    _reject_retired_movements(raw.get("gateway"))
     gateway_data, gateway_mode, three_phase_enabled, gateway_movements = (
         _gateway_options(raw.get("gateway"), units)
     )
@@ -273,6 +299,45 @@ def build_config(raw: Mapping[str, Any], *, base_dir: Optional[Path] = None) -> 
         gateway_movements=gateway_movements,
         three_phase_enabled=three_phase_enabled,
     )
+
+
+def _reject_retired_cameras(cameras: list[CameraConfig]) -> None:
+    for camera in cameras:
+        if camera.id in _RETIRED_CAMERA_IDS or camera.approach in _RETIRED_APPROACHES:
+            raise ConfigError(
+                f"camera {camera.id!r} uses the retired approach layout "
+                f"(id={camera.id!r}, approach={camera.approach!r}). "
+                "Migration is not automatic. " + _MIGRATION
+            )
+
+
+def _reject_retired_units(units: tuple[ServingUnit, ...]) -> None:
+    for unit in units:
+        retired = [name for name in unit.approaches if name in _RETIRED_APPROACHES]
+        if unit.id in _RETIRED_UNIT_IDS or retired:
+            raise ConfigError(
+                "decision.units uses the retired approach layout "
+                f"(unit={unit.id!r}, approaches={list(unit.approaches)!r}). "
+                + _MIGRATION
+            )
+
+
+def _reject_retired_movements(gateway: Any) -> None:
+    if not isinstance(gateway, Mapping):
+        return
+    three = gateway.get("three_phase")
+    if not isinstance(three, Mapping):
+        return
+    movements = three.get("movements")
+    if not isinstance(movements, Mapping):
+        return
+    for key, value in movements.items():
+        if key in _RETIRED_APPROACHES or value in _RETIRED_MOVEMENTS:
+            raise ConfigError(
+                "gateway.three_phase.movements uses retired names "
+                f"({key!r}: {value!r}). The proposed movement names are "
+                "MAIN_A, MAIN_B and SECONDARY. " + _MIGRATION
+            )
 
 
 def _camera_from(entry: Mapping[str, Any], base_dir: Path) -> CameraConfig:
@@ -482,9 +547,22 @@ def _gateway_options(
         if unsupported:
             raise ConfigError(
                 f"compat_two_phase units must be {WIRE_MOVEMENTS}; got "
-                f"{unsupported}. Merge approaches into a SECONDARY unit or set "
-                "gateway.mode: three_phase (needs new firmware)"
+                f"{unsupported}. Put MAIN_A/MAIN_B in the MAIN unit and SEC "
+                "in SECONDARY, or set gateway.mode: three_phase (needs new "
+                "firmware)"
             )
+        allowed = {
+            "MAIN": {"MAIN_A", "MAIN_B"},
+            "SECONDARY": {"SEC"},
+        }
+        for unit in units:
+            wrong = set(unit.approaches) - allowed.get(unit.id, set())
+            if wrong:
+                raise ConfigError(
+                    f"compat unit {unit.id!r} cannot contain "
+                    f"{sorted(wrong)}; MAIN may contain MAIN_A/MAIN_B and "
+                    "SECONDARY may contain SEC only. " + _MIGRATION
+                )
         movements = {unit_id: unit_id for unit_id in unit_ids}
         return data, mode, False, movements
 
@@ -506,7 +584,7 @@ def _gateway_options(
     if missing:
         raise ConfigError(
             "gateway.three_phase.movements must explicitly name every unit; "
-            f"missing {missing}. Proposed names are SECONDARY_A/SECONDARY_B, "
+            f"missing {missing}. Proposed names are MAIN_A/MAIN_B/SECONDARY, "
             "but nothing accepts them yet"
         )
     extra = set(movements_raw) - set(THREE_PHASE_UNITS)

@@ -27,13 +27,13 @@ def _window(qt_app, tmp_path):
         {
             "cameras": [
                 {
-                    "id": "cam_main",
-                    "approach": "MAIN",
+                    "id": "cam_main_a",
+                    "approach": "MAIN_A",
                     "source": "file",
                     "path": "missing.avi",
                 }
             ],
-            "decision": {"units": [{"id": "MAIN", "approaches": ["MAIN"]}]},
+            "decision": {"units": [{"id": "MAIN", "approaches": ["MAIN_A"]}]},
         }
     )
     controller = AppController(config, dry_run=True)

@@ -36,6 +36,7 @@ from app.snapshots import (
     RecommendationView,
     UiSnapshot,
     UnitView,
+    WireLineView,
     frozen_mapping,
 )
 from app.system_info import process_usage, system_usage
@@ -61,6 +62,7 @@ class AppController:
         mock_gateway: bool = False,
         detector_factory: Optional[Callable[[Any], Any]] = None,
         gateway: Optional[Any] = None,
+        wire_listener: Optional[Callable[[Any], None]] = None,
         annotate_frames: bool = True,
     ) -> None:
         self.config = config
@@ -91,6 +93,7 @@ class AppController:
             detector_factory=detector_factory,
             gateway=gateway,
             on_tick=self._on_tick,
+            wire_listener=wire_listener,
             annotate_frames=annotate_frames,
             draw_stats=False,
         )
@@ -117,6 +120,17 @@ class AppController:
     def decisions(self) -> list[dict]:
         with self._lock:
             return [dict(entry) for entry in self._decisions]
+
+    def wire_transcript(self) -> tuple[WireLineView, ...]:
+        """Exact gateway TX/RX lines, copied for the UI thread."""
+        gateway = self.orchestrator.gateway
+        wire = getattr(gateway, "wire", None)
+        if wire is None:
+            return ()
+        return tuple(
+            WireLineView(at=entry.at, direction=entry.direction, json=entry.json)
+            for entry in wire.entries()
+        )
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -269,6 +283,10 @@ class AppController:
     def snapshot(self) -> UiSnapshot:
         orchestrator = self.orchestrator
         health = orchestrator.manager.health_all()
+        pipeline_metrics = {
+            pipeline.camera_id: pipeline.latest_metrics()
+            for pipeline in orchestrator.pipelines
+        }
         metrics = {
             pipeline.approach_id: pipeline.latest_metrics()
             for pipeline in orchestrator.pipelines
@@ -298,13 +316,13 @@ class AppController:
                 frame_age_s=snapshot.last_frame_age_s,
                 reconnects=snapshot.reconnects,
                 processed_fps=(
-                    metrics[camera_id].processing_fps
-                    if camera_id in metrics
+                    pipeline_metrics[camera_id].processing_fps
+                    if camera_id in pipeline_metrics
                     else 0.0
                 ),
                 inference_ms=(
-                    round(metrics[camera_id].inference_s * 1000, 1)
-                    if camera_id in metrics
+                    round(pipeline_metrics[camera_id].inference_s * 1000, 1)
+                    if camera_id in pipeline_metrics
                     else 0.0
                 ),
                 dropped_frames=(

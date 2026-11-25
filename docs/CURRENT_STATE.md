@@ -1,8 +1,14 @@
-# Current State (pre-multi-camera)
+# Historical state (pre-multi-camera)
 
-Snapshot of `Intelligent_Traffic_Control` as of commit `0bb9835`, before the
-multi-camera / decision-engine work. This documents what the code actually does;
-where it disagrees with `README.md`, the code wins.
+> **Historical snapshot — not current documentation.** This records the tree at
+> commit `0bb9835`, before the multi-camera, decision-engine, gateway and GUI
+> work. In particular, the exact wire-traffic view described as missing below
+> was added later; see [`README.md`](../README.md) and
+> [`NETWORKING.md`](NETWORKING.md) for current behaviour.
+
+Snapshot of `Intelligent_Traffic_Control` as of commit `0bb9835`. This records
+what the code did at that commit; where it disagrees with `README.md`, the
+current code and README win.
 
 ## Runtime shape
 

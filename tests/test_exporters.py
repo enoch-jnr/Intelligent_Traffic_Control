@@ -116,12 +116,12 @@ def test_credentials_are_redacted_in_text_and_config():
             "cameras": [
                 {
                     "id": "cam",
-                    "approach": "MAIN",
+                    "approach": "MAIN_A",
                     "source": "rtsp",
                     "url": "rtsp://admin:hunter2@10.0.0.2/stream",
                 }
             ],
-            "decision": {"units": [{"id": "MAIN", "approaches": ["MAIN"]}]},
+            "decision": {"units": [{"id": "MAIN", "approaches": ["MAIN_A"]}]},
         }
     )
     rendered = config_yaml(config)
@@ -135,12 +135,12 @@ def test_diagnostics_bundle_has_no_images_and_no_secret(tmp_path):
             "cameras": [
                 {
                     "id": "cam",
-                    "approach": "MAIN",
+                    "approach": "MAIN_A",
                     "source": "rtsp",
                     "url": "rtsp://admin:hunter2@10.0.0.2/stream",
                 }
             ],
-            "decision": {"units": [{"id": "MAIN", "approaches": ["MAIN"]}]},
+            "decision": {"units": [{"id": "MAIN", "approaches": ["MAIN_A"]}]},
         }
     )
     target = tmp_path / "diagnostics.zip"

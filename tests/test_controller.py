@@ -51,8 +51,8 @@ def _config(tmp_path, gateway: MockGateway):
         {
             "cameras": [
                 {
-                    "id": "cam_main",
-                    "approach": "MAIN",
+                    "id": "cam_main_a",
+                    "approach": "MAIN_A",
                     "source": "file",
                     "path": str(video),
                     "loop": True,
@@ -61,7 +61,7 @@ def _config(tmp_path, gateway: MockGateway):
                 }
             ],
             "decision": {
-                "units": [{"id": "MAIN", "approaches": ["MAIN"]}],
+                "units": [{"id": "MAIN", "approaches": ["MAIN_A"]}],
                 "smoothing_window_s": 0,
                 "min_interval_s": 0,
                 "min_delta_s": 0,
@@ -110,10 +110,10 @@ def test_snapshot_is_frozen_and_reports_cameras(tmp_path):
                 timeout_s=6.0,
             )
             snapshot = controller.snapshot()
-            assert snapshot.cameras[0].camera_id == "cam_main"
+            assert snapshot.cameras[0].camera_id == "cam_main_a"
             assert snapshot.cameras[0].source == "file"
             assert snapshot.cameras[0].state == "LIVE"
-            assert snapshot.approaches[0].approach_id == "MAIN"
+            assert snapshot.approaches[0].approach_id == "MAIN_A"
             assert snapshot.mode == "compat_two_phase"
             assert snapshot.simulation is False
             assert snapshot.fresh_cameras == 1
@@ -218,10 +218,10 @@ def test_annotated_frame_is_downscaled(tmp_path):
         try:
             controller.start()
             assert wait_until(
-                lambda: controller.frame("cam_main", max_size=160) is not None,
+                lambda: controller.frame("cam_main_a", max_size=160) is not None,
                 timeout_s=6.0,
             )
-            frame = controller.frame("cam_main", max_size=160)
+            frame = controller.frame("cam_main_a", max_size=160)
             assert frame is not None
             assert max(frame.shape[:2]) <= 160
         finally:

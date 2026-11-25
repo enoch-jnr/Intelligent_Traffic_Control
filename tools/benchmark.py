@@ -376,10 +376,7 @@ def _flaps(states: list) -> int:
 def _dropped(orchestrator: Orchestrator) -> int:
     return int(
         sum(getattr(p, "dropped_frames", 0) for p in orchestrator.pipelines)
-    )
-
-
-def _heartbeat_times(gateway) -> list[float]:
+    )    def _heartbeat_times(gateway) -> list[float]:
     times = getattr(gateway, "heartbeat_times", None)
     return list(times) if times is not None else []
 
@@ -421,6 +418,10 @@ def run_one(
                 gateway_port=port,
                 sampler=sampler,
             )
+        heartbeat_times = _heartbeat_times(gateway) if gateway is not None else []
+        heartbeat_gaps = [
+            b - a for a, b in zip(heartbeat_times, heartbeat_times[1:])
+        ]
         return {
             "name": name,
             "duration_s": duration,
@@ -428,6 +429,11 @@ def run_one(
             "dry_run": dry_run,
             "mock_gateway": not dry_run,
             "summary": _summary(samples, warmup_s, started),
+            "heartbeat": {
+                "count": len(heartbeat_times),
+                "mean_gap_s": round(_mean(heartbeat_gaps) or 0.0, 3),
+                "max_gap_s": round(max(heartbeat_gaps) if heartbeat_gaps else 0.0, 3),
+            },
             "samples": samples,
             **diagnostics,
         }

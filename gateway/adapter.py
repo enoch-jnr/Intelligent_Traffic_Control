@@ -8,8 +8,9 @@ Two modes exist:
 
 ``compat_two_phase`` (default)
     The current firmware. Units are ``MAIN`` and ``SECONDARY`` and each unit id
-    is also its wire movement. ``SEC_A``/``SEC_B`` may share the ``SECONDARY``
-    unit, so the controller cannot tell them apart.
+    is also its wire movement. Approaches ``MAIN_A``/``MAIN_B`` share the
+    ``MAIN`` unit and ``SEC`` is the ``SECONDARY`` unit. The controller cannot
+    tell ``MAIN_A`` and ``MAIN_B`` apart.
 
 ``three_phase``
     The target T-junction layout. **The movement names below are proposals,
@@ -37,14 +38,14 @@ THREE_PHASE_MODE = "three_phase"
 MODES: tuple[str, ...] = (COMPAT_MODE, THREE_PHASE_MODE)
 
 #: Unit ids that make up the T-junction target layout.
-THREE_PHASE_UNITS: tuple[str, ...] = ("MAIN", "SEC_A", "SEC_B")
+THREE_PHASE_UNITS: tuple[str, ...] = ("MAIN_A", "MAIN_B", "SEC")
 
 #: Proposed wire names for the target layout. PROPOSALS ONLY: no firmware
 #: accepts these today.
 PROPOSED_THREE_PHASE_MOVEMENTS: Mapping[str, str] = {
-    "MAIN": "MAIN",
-    "SEC_A": "SECONDARY_A",
-    "SEC_B": "SECONDARY_B",
+    "MAIN_A": "MAIN_A",
+    "MAIN_B": "MAIN_B",
+    "SEC": "SECONDARY",
 }
 
 

@@ -129,10 +129,40 @@ and the context menu contains no Fullscreen item.
 - Menu bar, tab headers and log buttons are compact; tiles can shrink to
   108 px high and keep aspect ratio with letterboxing.
 
+## Follow-up: dock could grow but not shrink
+
+The second cause was not the 240 px acceptance figure alone. The dock frame had
+`setMinimumHeight(312)`, and its tab page's child layout also reported a 291 px
+minimum-size hint. QSplitter therefore treated 291 px as the floor even after
+the explicit 312 px minimum was removed, so dragging up grew the dock but
+moving the handle back down could not return the space.
+
+The frame, tab widget, log view, decisions table and detail box now have zero
+minimum height and an ignored vertical size policy. The frame's only minimum is
+the 80 px floor (tab header plus about two log lines). Dragging below 80 px
+collapses the dock; the handle double-click and `Ctrl+J` toggle collapse and
+restore; the height and collapsed state persist. Corrupt or out-of-range saved
+heights fall back to 312 px, and old camera ids in persisted focus settings are
+ignored.
+
+## Later addition: exact gateway wire traffic
+
+A read-only diagnostic window was added after this fix pass. **Controls → Wire
+traffic…** is modeless and polls the controller's bounded transcript every
+400 ms while visible; it shows exact TX/RX JSON, a status count and **Copy all**.
+The data is captured in the gateway client before parsing, kept in memory (newest
+1,000 lines) and never added to `decisions.jsonl`. It does not touch the tile
+paint path, decision logic or protocol. See
+[`UI_DESIGN.md`](UI_DESIGN.md#12-exact-gateway-wire-traffic) and
+[`NETWORKING.md`](NETWORKING.md#inspecting-the-gateway-link).
+
 ## Verification
 
-- `python -m pytest -q` → 142 passed.
+- `python -m pytest -q` → 164 passed on the current tree (157 at this fix-pass
+  checkpoint, before the wire-traffic tests).
 - Pixel, stale, badge, layout, pop-out, preview, profile, load-shedding,
   dropped-frame and streaming-export tests were added.
+- Exact wire capture, listener safety, bounded history and the GUI window are
+  covered by `tests/test_wire_transcript.py` and `tests/test_ui_wire.py`.
 - Core import guard still passes (`tests/test_gui_isolation.py`).
 - No hardware, real RTSP, ESP32, Uno, high-DPI or multi-monitor testing.

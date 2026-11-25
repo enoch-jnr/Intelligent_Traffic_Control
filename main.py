@@ -34,6 +34,7 @@ from decision.models import ServingUnit
 from decision.settings import DecisionSettings
 from gateway.adapter import COMPAT_MODE, THREE_PHASE_MODE
 from gateway.client import GatewayConfig
+from gateway.transcript import WireEntry
 
 _log = logging.getLogger("main")
 
@@ -73,6 +74,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="connect to the mock gateway on 127.0.0.1",
     )
     parser.add_argument(
+        "--show-wire",
+        action="store_true",
+        help="print every exact JSON line sent to the gateway and received back",
+    )
+    parser.add_argument(
         "--source",
         help="legacy single-camera demo: webcam:0, file:clip.avi or rtsp://...",
     )
@@ -90,6 +96,11 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def print_wire_entry(entry: WireEntry) -> None:
+    """Print one exact JSON line with its direction; keep stdout line-buffered."""
+    print(f"{entry.direction} {entry.json}", flush=True)
+
+
 def config_from_source(spec: str) -> AppConfig:
     """Build a one-camera demo config from ``--source``."""
     raw = spec.strip()
@@ -104,7 +115,7 @@ def config_from_source(spec: str) -> AppConfig:
     if kind == "webcam":
         camera = CameraConfig(
             id="demo_webcam",
-            approach="MAIN",
+            approach="MAIN_A",
             source="webcam",
             index=int(value or 0),
             flip=True,
@@ -115,7 +126,7 @@ def config_from_source(spec: str) -> AppConfig:
             raise ConfigError("--source file: needs a video path")
         camera = CameraConfig(
             id="demo_file",
-            approach="MAIN",
+            approach="MAIN_A",
             source="file",
             path=value,
             loop=True,
@@ -127,7 +138,7 @@ def config_from_source(spec: str) -> AppConfig:
             raise ConfigError("--source rtsp: needs an rtsp:// URL")
         camera = CameraConfig(
             id="demo_rtsp",
-            approach="MAIN",
+            approach="MAIN_A",
             source="rtsp",
             url=value,
             target_fps=12.0,
@@ -139,7 +150,7 @@ def config_from_source(spec: str) -> AppConfig:
 
     return AppConfig(
         cameras=(camera,),
-        units=(ServingUnit("MAIN", ("MAIN",)),),
+        units=(ServingUnit("MAIN", ("MAIN_A",)),),
         decision=DecisionSettings(),
         gateway=GatewayConfig(),
         health=HealthConfig(),
@@ -183,7 +194,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         elif config.gateway_mode == THREE_PHASE_MODE:
             _log.warning(
                 "three_phase mode with --mock-gateway: start the mock with "
-                "--movements MAIN,SECONDARY_A,SECONDARY_B or it will reject "
+                "--movements MAIN_A,MAIN_B,SECONDARY or it will reject "
                 "the proposed names"
             )
 
@@ -202,12 +213,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             dry_run=args.dry_run,
             mock_gateway=args.mock_gateway,
             display=False,
+            wire_listener=print_wire_entry if args.show_wire else None,
             annotate_frames=True,
         )
         return run_gui(controller, argv=sys.argv[:1])
 
     display = (args.display or config.display) and not args.headless
-    orchestrator = Orchestrator(config, display=display, dry_run=args.dry_run)
+    orchestrator = Orchestrator(
+        config,
+        display=display,
+        dry_run=args.dry_run,
+        wire_listener=print_wire_entry if args.show_wire else None,
+    )
 
     try:
         orchestrator.run(duration_s=args.duration)
