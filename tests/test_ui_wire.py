@@ -7,7 +7,8 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, Qt
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from app.config import build_config
@@ -61,7 +62,7 @@ def test_dialog_shows_exact_json_and_direction(qt_app):
         dialog.close()
 
 
-def test_wire_button_opens_the_window(qt_app, tmp_path):
+def test_wire_button_and_shortcut_open_the_window(qt_app, tmp_path):
     config = build_config(
         {
             "cameras": [
@@ -85,11 +86,23 @@ def test_wire_button_opens_the_window(qt_app, tmp_path):
     qt_app.processEvents()
     try:
         assert window.wire_button.text() == "Wire traffic…"
-        window.wire_button.click()
+        assert window.wire_action.shortcut().toString() == "Ctrl+Shift+W"
+        QTest.keyClick(
+            window,
+            Qt.Key.Key_W,
+            Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier,
+        )
         qt_app.processEvents()
         assert window._wire_dialog is not None
         assert window._wire_dialog.isVisible()
         assert "No gateway traffic yet" in window._wire_dialog.status.text()
+
+        window._wire_dialog.close()
+        qt_app.processEvents()
+        assert not window._wire_dialog.isVisible()
+        window.wire_button.click()
+        qt_app.processEvents()
+        assert window._wire_dialog.isVisible()
     finally:
         window.close()
         controller.shutdown()

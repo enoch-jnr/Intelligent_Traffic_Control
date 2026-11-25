@@ -84,8 +84,8 @@ nmcli connection modify "Smarti-Gateway" ipv4.never-default yes
 3. `ping 192.168.4.1` — the ESP32 answers on its AP.
 4. Only then start the app. The JSONL decision log records per-camera
    `frame_age_s`, so a silent camera is visible without a debugger.
-5. To inspect the link itself, start with `--show-wire` or open
-   **Controls → Wire traffic…** in the console. It shows the exact TX/RX JSON
+5. To inspect the link itself, start with `--show-wire`, or press
+   **Ctrl+Shift+W** in the console. It shows the exact TX/RX JSON
    lines, including heartbeats and the gateway's rejection reason, without
    changing what is sent.
 
@@ -110,8 +110,9 @@ TX {"type":"HEARTBEAT"}
 RX {"type":"GATEWAY_ACK","status":"HEARTBEAT_OK"}
 ```
 
-In the console, open **Controls → Wire traffic…** before or during a run. The
-window polls every 400 ms while visible and has **Copy all**. Copy the transcript
+In the console, press **Ctrl+Shift+W** (or use **Controls → Wire traffic…**)
+before or during a run. The window polls every 400 ms while visible and has
+**Copy all**. Copy the transcript
 before shutting down; the oldest lines are discarded once the 1,000-line bound
 is reached.
 

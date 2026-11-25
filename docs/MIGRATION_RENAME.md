@@ -6,7 +6,8 @@ migration error and guard test) where the retired identifiers remain.
 
 > **Historical audit.** The inventory below describes the pre-rename tree. One
 > finding is now out of date: an exact, read-only wire transcript with
-> `--show-wire` and **Controls → Wire traffic…** was added after this audit. See
+> `--show-wire` and **Controls → Wire traffic…** (**Ctrl+Shift+W**) were added
+> after this audit. See
 > [`README.md`](../README.md) and [`NETWORKING.md`](NETWORKING.md) for current
 > behaviour; the statement in section 4 records what existed at audit time.
 

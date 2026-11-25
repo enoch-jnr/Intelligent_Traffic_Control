@@ -173,7 +173,8 @@ and reduced motion.
   (Ctrl+E/Ctrl+Shift+E/Ctrl+Shift+S exports, Ctrl+H hold, Ctrl+R reset,
   Ctrl+L release, F5 start/stop, F11 focus, Ctrl+Q shutdown). New bindings:
   Ctrl+J log panel, Ctrl+T theme, F6/Shift+F6 next/previous camera,
-  Ctrl+1/2/3 direct camera focus, Ctrl+, configuration.
+  Ctrl+1/2/3 direct camera focus, Ctrl+, configuration, Ctrl+Shift+W wire
+  traffic.
 - The focused camera is named in the status bar, not shown by colour alone.
 - The log dock has an 80 px floor, collapses when dragged below it, toggles
   with Ctrl+J or a splitter-handle double-click, and persists its height.
@@ -296,7 +297,8 @@ menus).
 
 ## 12. Exact gateway wire traffic
 
-**Controls → Wire traffic…** opens a modeless, read-only window titled
+**Controls → Wire traffic…** or **Ctrl+Shift+W** opens a modeless, read-only
+window titled
 “Gateway wire traffic — exact JSON”. It exists to answer one question without a
 packet capture: what exact JSON left the host, and what exact JSON came back?
 

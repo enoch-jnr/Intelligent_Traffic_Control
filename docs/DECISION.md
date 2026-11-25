@@ -170,8 +170,8 @@ and writes both to the JSONL log alongside the gateway reply.
 
 The exact TX/RX transcript is outside the decision path. `GatewayClient` records
 complete lines in a bounded, thread-safe memory buffer (newest 1,000); the CLI
-`--show-wire` flag prints them, and **Controls → Wire traffic…** displays the
-same lines in the console. RX is captured before JSON parsing, so malformed or
+`--show-wire` flag prints them, and **Controls → Wire traffic…** or
+**Ctrl+Shift+W** displays the same lines in the console. RX is captured before JSON parsing, so malformed or
 rejected replies are visible as the gateway sent them.
 
 The transcript is not written to `decisions.jsonl` and does not alter scoring,

@@ -62,9 +62,15 @@ def test_shortcut_registry_is_unique_and_every_action_uses_it(qt_app, tmp_path):
         assert len(sequences) == len(set(sequences))
         assert "Ctrl+J" in sequences
         assert "Ctrl+T" in sequences
-        assert {"F6", "Shift+F6", "Ctrl+1", "Ctrl+2", "Ctrl+3", "Ctrl+,"} <= set(
-            sequences
-        )
+        assert {
+            "F6",
+            "Shift+F6",
+            "Ctrl+1",
+            "Ctrl+2",
+            "Ctrl+3",
+            "Ctrl+,",
+            "Ctrl+Shift+W",
+        } <= set(sequences)
         for spec in window._shortcuts.specs:
             assert spec.action.shortcut().toString() == spec.action.shortcut().toString()
             assert spec.description

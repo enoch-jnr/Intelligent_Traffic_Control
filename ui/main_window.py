@@ -244,6 +244,14 @@ class MainWindow(QMainWindow):
             self.logs_action, "Ctrl+J", "Hide or restore the log panel"
         )
 
+        self.wire_action = QAction("Wire traffic…", self)
+        self.wire_action.triggered.connect(self._show_wire_window)
+        self._shortcuts.register(
+            self.wire_action,
+            "Ctrl+Shift+W",
+            "Show exact gateway wire traffic",
+        )
+
         self.preview_action = QAction("Video preview", self)
         self.preview_action.setCheckable(True)
         self.preview_action.setChecked(True)
@@ -373,6 +381,7 @@ class MainWindow(QMainWindow):
         view_menu.addAction(self.theme_action)
         view_menu.addSeparator()
         view_menu.addAction(self.logs_action)
+        view_menu.addAction(self.wire_action)
 
         cameras_menu = menu.addMenu("Cameras")
         cameras_menu.addAction(self.focus_next_action)
@@ -685,7 +694,7 @@ class MainWindow(QMainWindow):
             "Wire traffic…",
             self._show_wire_window,
             "",
-            "Show the exact JSON sent to the gateway and every reply received",
+            "Show the exact JSON sent to the gateway and every reply received (Ctrl+Shift+W)",
         )
         snapshot_button = button(
             "Dashboard image…",
