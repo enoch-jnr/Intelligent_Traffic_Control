@@ -104,6 +104,10 @@ Keep the current envelope for compatibility:
 {"type":"GATEWAY_ACK","status":"CONTROLLER_ACCEPTED","sequence":104,"uno_ack":"ACK:REQUEST_SEC,18"}
 ```
 
+The host's **Controls → Wire traffic…** window (or `--show-wire`) shows this
+envelope exactly as sent and received. Use it when freezing the new ACK text for
+the three-phase firmware, and record the exchange in the bench notes.
+
 Proposed additions:
 
 - If the Uno cannot schedule a request it returns
@@ -243,3 +247,6 @@ LEDs and no cameras:
    only on a new TCP session.
 9. Watch the ESP32 stack watermark under sustained 1 Hz heartbeat + requests
    for at least 30 minutes.
+10. Run the host with `--show-wire` (or open **Controls → Wire traffic…**) and
+    save the exact TX/RX exchange for each new movement. Include any rejection
+    reason in the firmware notes; do not infer lamp state from an ACK.

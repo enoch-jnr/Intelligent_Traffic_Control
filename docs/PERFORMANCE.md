@@ -78,6 +78,15 @@ the table rebuild was CPU-visible.
 8. Streaming JSONL/CSV exports and bounded diagnostics tails.
 9. Opened the table detail pane smaller so eight rows fit at 1280x720.
 
+## Wire-traffic diagnostics
+
+The gateway client records complete TX/RX lines in a bounded in-memory history
+(newest 1,000 entries); the CLI flag and GUI window only read that history. There
+is no write to `decisions.jsonl` and no extra network connection. The benchmark
+in this document predates this diagnostic, and the GUI runs did not have the
+wire window open, so no performance claim is made for that window. It copies
+the bounded snapshot on its 400 ms timer only while visible.
+
 ## Chosen not to do
 
 - **Shared detector / batched inference.** This would save model memory but
@@ -91,5 +100,8 @@ the table rebuild was CPU-visible.
 
 ## Verification
 
-- Full suite: 142 passed.
+- Original performance checkpoint: 142 passed.
+- Current full suite after the GUI/wire additions: 164 passed.
 - Offscreen only; no hardware, real cameras, ESP32, Uno or high-DPI testing.
+- The wire-traffic window was not part of the performance benchmark; its history
+  is in memory and bounded to 1,000 lines.

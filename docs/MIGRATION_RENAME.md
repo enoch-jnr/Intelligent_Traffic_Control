@@ -4,6 +4,12 @@
 approach rename. It is deliberately retained as the only place (with the
 migration error and guard test) where the retired identifiers remain.
 
+> **Historical audit.** The inventory below describes the pre-rename tree. One
+> finding is now out of date: an exact, read-only wire transcript with
+> `--show-wire` and **Controls → Wire traffic…** was added after this audit. See
+> [`README.md`](../README.md) and [`NETWORKING.md`](NETWORKING.md) for current
+> behaviour; the statement in section 4 records what existed at audit time.
+
 ## 1. Why this is not a find-and-replace
 
 The requested mapping is:
@@ -73,11 +79,13 @@ not accepted by current firmware.
 Prompt 4's GUI fixes and the Prompt 4 follow-up are committed (`fc0e403`,
 `a6aaaef`). The test suite was green before this pass.
 
-**Prompt 5 was not present.** There is no `wire_monitor`, wire-log record, wire
-report tool, or wire-monitor UI in the tree. The inventory therefore covers the
-existing decision log, exporters, mock gateway and UI; Part C's wire-monitor
-step is recorded as not applicable rather than inventing a monitor. No new wire
-message or protocol behaviour is introduced by this rename.
+**Prompt 5 was not present.** There was no `wire_monitor`, wire-log record, wire
+report tool, or wire-monitor UI in the pre-rename tree. The inventory therefore
+covers the existing decision log, exporters, mock gateway and UI; Part C's
+wire-monitor step was recorded as not applicable rather than inventing a monitor
+at that time. An exact read-only wire view was added later (see the historical
+note above). No new wire message or protocol behaviour is introduced by the
+rename itself.
 
 The inventory below was generated from the pre-rename tree, excluding `.git`,
 `.venv`, caches, runtime logs and screenshots. It covers code,

@@ -200,9 +200,10 @@ counts, congestion) and exits on `q`.
 
 5. Verify the link: `logs/decisions.jsonl` should show `"health_gate_open": true`
    and accepted requests. If the gate stays closed, the log names the unhealthy
-   approach or the missing fresh camera. The full first-session checklist is
-   [`docs/BENCH_TEST_PLAN.md`](docs/BENCH_TEST_PLAN.md) — none of it has been
-   performed.
+   approach or the missing fresh camera. For the exact wire exchange, add
+   `--show-wire`, or use **Controls → Wire traffic…** in the console. The full
+   first-session checklist is [`docs/BENCH_TEST_PLAN.md`](docs/BENCH_TEST_PLAN.md)
+   — none of it has been performed.
 
 ## Configuration
 
@@ -285,11 +286,12 @@ TX {"type":"TRAFFIC_REQUEST","movement":"MAIN","green_time":15,"priority":"NORMA
 RX {"type":"GATEWAY_ACK","status":"CONTROLLER_ACCEPTED","sequence":1,"uno_ack":"ACK:REQUEST_MAIN,15"}
 ```
 
-In the operator console, **Controls → Wire traffic…** opens a live window with
-the same TX/RX lines and a **Copy all** button. The transcript is in memory only,
-bounded to the newest 1,000 lines, and does not add anything to the decision log.
-It shows the JSON before parsing, so a malformed or rejected reply is visible
-exactly as it arrived.
+The client records the newest 1,000 complete lines in memory whenever it runs;
+`--show-wire` prints new lines as they arrive. In the operator console,
+**Controls → Wire traffic…** opens a live, read-only window over the same
+buffer, with a **Copy all** button. The transcript is memory-only and does not
+add anything to the decision log. It records RX before parsing, so a malformed
+or rejected reply is visible exactly as it arrived.
 
 ## Decision log
 
@@ -339,6 +341,7 @@ the mode: `SIMULATION:DRY-RUN`, `SIMULATION:MOCK-GATEWAY`,
 | --- | --- |
 | Start / Stop (F5) | Start or stop pipelines and the decision loop. Stop confirms. |
 | Hold / Resume requests (Ctrl+H) | Keep analysing and heartbeating but send no `TRAFFIC_REQUEST`s; decisions are logged with `reason: operator_hold`. |
+| Wire traffic… | Open a live, read-only window with the exact TX/RX JSON lines, timestamps and **Copy all**. The bounded 1,000-line history is memory-only; it never sends a request. |
 | Reset analysis (Ctrl+R) | Confirm; clears smoothing, counters and tracks, and restarts the gateway session (sequence back to 1). |
 | Release to autonomous (Ctrl+L) | Confirm; closes the heartbeat gate so the controller runs its own cycle. Resume control restores normal gating. |
 | Save / Export log (Ctrl+E) | Save-as for JSONL, flattened CSV or the filtered log text; range last 5 min, last hour, all decisions or selected rows. Runs in a worker with progress and a Show-in-folder result. |
@@ -373,8 +376,9 @@ every gateway error reply, camera manager lifecycle and stale detection,
 per-camera pipeline isolation, decision rules (scoring, smoothing, starvation,
 hysteresis, clamping, degraded cameras, expected red, `max_red_s`), generic
 two- and three-unit layouts, aggregation, unit→movement adapter output and mode
-refusals, config validation, log rotation, and end-to-end runs of three looping
-videos through decisions to the mock gateway in **both** modes.
+refusals, config validation, log rotation, exact TX/RX transcript capture and
+bounds, the GUI wire window, and end-to-end runs of three looping videos through
+decisions to the mock gateway in **both** modes.
 
 ## Project structure
 
@@ -395,7 +399,8 @@ Intelligent_Traffic_Control/
 │   ├── adapter.py          # unit -> wire movement, modes
 │   ├── client.py           # threaded reconnecting client
 │   ├── mock_gateway.py     # hardware-free gateway
-│   └── protocol.py         # framing + validation
+│   ├── protocol.py         # framing + validation
+│   └── transcript.py       # bounded exact TX/RX history
 ├── pipeline/               # per-camera perception worker
 ├── tests/
 ├── docs/                   # decision, networking, audit, proposals, bench plan

@@ -1,5 +1,11 @@
 # Follow-up audit: T-junction, units and the protocol edge
 
+> **Historical audit — not current documentation.** The issues below were the
+> starting point for the follow-up. Units, the wire adapter and the exact
+> read-only wire transcript have since been implemented; use
+> [`README.md`](../README.md) and [`DECISION.md`](DECISION.md) for current
+> behaviour. The code references here intentionally describe the old tree.
+
 This is a snapshot of the code **before** the follow-up changes, written by
 reading it rather than from the earlier brief. Line references are to the
 pre-change tree (commit `449262f`). No behaviour was changed for this phase.

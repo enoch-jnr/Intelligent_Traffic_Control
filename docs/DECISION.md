@@ -166,6 +166,19 @@ expected_red_s)`. `reasons` explains the scores, the rule that fired, clamping
 and any suppression. The orchestrator translates `unit_id` to a wire movement
 and writes both to the JSONL log alongside the gateway reply.
 
+## Observing the wire without changing it
+
+The exact TX/RX transcript is outside the decision path. `GatewayClient` records
+complete lines in a bounded, thread-safe memory buffer (newest 1,000); the CLI
+`--show-wire` flag prints them, and **Controls → Wire traffic…** displays the
+same lines in the console. RX is captured before JSON parsing, so malformed or
+rejected replies are visible as the gateway sent them.
+
+The transcript is not written to `decisions.jsonl` and does not alter scoring,
+hysteresis, fairness, health gating, priority or what is sent. It is not lamp
+state: `CONTROLLER_ACCEPTED` still means only that the request was accepted, not
+that a phase changed.
+
 ## Wire modes (the protocol edge)
 
 The engine does not know `MAIN_A`, `MAIN_B`, `SEC`, `SECONDARY` or any other

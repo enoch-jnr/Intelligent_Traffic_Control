@@ -42,6 +42,7 @@ seams and the smallest additions needed:
 | Annotated frame | `CameraPipeline.latest_annotated()` copies the full frame | `latest_annotated(max_size)` downscales before returning |
 | Decision record | `tick()` builds the JSONL entry | optional `on_tick(entry)` callback, wrapped so a slow/broken GUI cannot break the loop |
 | Gate state/reason | `health_gate_open()`, gate transition log | last reason retained for the status tooltip |
+| Exact wire traffic | No existing seam | `GatewayClient` transcript + `AppController.wire_transcript()` returning immutable `WireLineView` copies; the UI never imports gateway internals |
 | Requests held | none | `hold_requests()` / `resume_requests()`; decisions still logged with `request.reason = operator_hold` |
 | Operator release | none | `release_to_autonomous()` forces the existing gate closed; `resume_control()` restores normal gating |
 | Reset | `DecisionEngine.reset()` | `request_reset()` processed at the top of the next tick: engine + pipeline state reset and gateway session restart |
@@ -188,6 +189,8 @@ and reduced motion.
 5. Live log and decisions table with filters, search and caps.
 6. Controls, confirmations, worker exports, diagnostics, shortcuts.
 7. Accessibility/polish, light theme, persisted layout, README and screenshots.
+8. Exact wire-traffic view: `--show-wire`, **Controls → Wire traffic…**, live
+   exact-JSON dialog and Copy all.
 
 ## 10. Fix pass: compact layout and calibrated rendering
 
@@ -224,10 +227,10 @@ See [`GUI_FIXES.md`](GUI_FIXES.md) and [`PERFORMANCE.md`](PERFORMANCE.md).
 
 ## 11. Implementation status and measured impact
 
-Phases 0-7 are implemented. The console is `--gui` only; `python main.py`
-without it, the existing `--display` window and all 99 original tests are
-unchanged. The core/UI guard test parses every core package and asserts it
-imports neither `ui` nor PySide6, including in a fresh subprocess.
+Phases 0-8 are implemented. The console is `--gui` only; `python main.py`
+without it and the existing `--display` window are unchanged. The suite has
+grown from 99 to 164 tests. The core/UI guard test parses every core package and
+asserts it imports neither `ui` nor PySide6, including in a fresh subprocess.
 
 ### Measured GUI impact (Phase 3 requirement)
 
@@ -257,7 +260,8 @@ system state, controls, log and decision table, with the amber simulation
 mode badge. It was rendered with system Segoe UI/Consolas loaded explicitly because
 Qt's offscreen platform on this machine does not discover the Windows font
 directory. No font, icon or stock asset is bundled by the app. The screenshot
-contains no real people, plates or site imagery.
+predates the **Wire traffic…** button added in section 12; the README controls
+table is authoritative. It contains no real people, plates or site imagery.
 
 During the screenshot review two defects were found and fixed: the pipeline's
 baked-in stats duplicated the tile telemetry (GUI frames now draw shapes/boxes
@@ -281,10 +285,34 @@ menus).
 
 - No manual "send test request" button was added, even for loopback; the
   gateway is only driven by the decision engine. This avoids any operator path
-  that could send a request against real firmware.
+  that could send a request against real firmware. The wire-traffic window is
+  read-only and cannot inject a message.
 - PTZ and numbered preset controls were skipped: the cameras are fixed.
 - Three-phase movements remain a disabled proposal; the mode badge marks them
   as simulation and the firmware does not exist.
 - The optional light theme uses darkened status/identity hues; the dark theme's
   measured AA pairs are in section 5. `text-muted` is intentionally decorative
   only and is never used for status or body copy.
+
+## 12. Exact gateway wire traffic
+
+**Controls → Wire traffic…** opens a modeless, read-only window titled
+“Gateway wire traffic — exact JSON”. It exists to answer one question without a
+packet capture: what exact JSON left the host, and what exact JSON came back?
+
+| Property | Behaviour |
+| --- | --- |
+| Data source | `GatewayClient` records each complete line after a successful send and each RX line before decoding. |
+| Scope | Handshake, heartbeats, requests, replies, rejection reasons and malformed inbound lines. |
+| Storage | Thread-safe in-memory transcript, newest 1,000 entries; no file and no decision-log row. |
+| Presentation | Monospace read-only text, `TX`/`RX` plus UTC timestamp, blank line between entries. JSON is not reformatted. |
+| Refresh | 400 ms timer, started only while shown and stopped when hidden. |
+| Actions | **Copy all** and **Close**; the view cannot send or modify traffic. |
+| Scrolling | Follows the newest entry only when already at the bottom; otherwise preserves the operator's position. |
+| Isolation | The UI consumes immutable `WireLineView` copies from the controller; it imports no gateway module. |
+| Empty state | “No gateway traffic yet” until the client has sent or received a line. |
+
+The same history drives `--show-wire`, so CLI and GUI cannot disagree about the
+message text. A malformed or rejected reply is shown as received even though it
+produces no successful decision or request result. The window never claims a
+lamp changed; `CONTROLLER_ACCEPTED` remains an acknowledgement only.
